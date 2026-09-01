@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# environment / secrets
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+npm-debug.log*
+
+# scratch space for one-off scripts
+tmp/
+
+# editors / os
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
