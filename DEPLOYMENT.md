@@ -179,6 +179,10 @@ TRUST_PROXY=2
 
 GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
 
+# Leave the line above blank while you are still on a bare IP. Google rejects
+# IP addresses and plain HTTP as authorised origins, so the button cannot work
+# until the domain has TLS. Email and password sign-in are unaffected.
+
 LLM_PROVIDER=gemini
 LLM_API_KEY=your-key
 LLM_MODEL=
@@ -580,6 +584,7 @@ in, not what goes out.
 | Backend hangs, never says "MongoDB connected" | Atlas is blocking EC2 | Add the Elastic IP under Network Access |
 | Uploads fail around 1 MB | nginx default | `client_max_body_size 10M` |
 | 502 Bad Gateway | Node is not running | `pm2 logs saarthios-api` |
+| Google sign-in: `Error 400: invalid_request` | You are on a bare IP or plain HTTP | Google only accepts **domains over HTTPS** as authorised origins (`localhost` aside). Blank `GOOGLE_CLIENT_ID` until your domain has TLS — email/password keeps working |
 | Browser just hangs on the IP | Port 80 not open in the security group | Add inbound HTTP 80 from `0.0.0.0/0` |
 | `http://your-ip:5000` answers | Port 5000 is exposed, bypassing nginx | Remove that inbound rule and set `BIND_HOST=127.0.0.1` |
 | `Cannot find module @rollup/rollup-linux-x64-gnu` | Lockfile was generated on Windows and omits the Linux binary | Already fixed — `git pull` then `npm ci`. If it returns, run `npm install` on Linux once and commit the lockfile |
