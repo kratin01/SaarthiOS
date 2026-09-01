@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { connectDatabaseWithRetry, disconnectDatabase, isDatabaseReady } from './config/db.js';
 import { createApp } from './app.js';
 import { logger } from './utils/logger.js';
+import { toDateKey } from './utils/dates.js';
 import { envLlmStatus } from './ai/llm.js';
 
 async function main() {
@@ -22,6 +23,13 @@ async function main() {
       // the proxy instead of the visitor, and one user can lock out everyone.
       logger.info(`Trusting ${env.TRUST_PROXY} proxy hop(s) for client IPs`);
       logger.info(`Allowed origins: ${env.allowedOrigins.join(', ') || 'none'}`);
+
+      // "Today" is bucketed in the server's timezone. A box left on UTC shows
+      // yesterday's numbers to anyone ahead of it until their morning catches
+      // up, which reads as stale data rather than a misconfiguration.
+      logger.info(
+        `Timezone ${Intl.DateTimeFormat().resolvedOptions().timeZone} — today is ${toDateKey(new Date())}. Set TZ in .env if that is not your date.`
+      );
 
       if (env.BIND_HOST === '0.0.0.0') {
         logger.warn(
