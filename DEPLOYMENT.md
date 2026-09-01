@@ -15,7 +15,7 @@ This file belongs in the **SaarthiOS** (API) repository.
                             │
              ┌──────────────┴───────────────┐
              ▼                              ▼
-   saarthios.space                    api.saarthios.space
+   saarthios.space  (app at /, API at /api)
    ┌──────────────────┐            ┌──────────────────┐
    │ Cloudflare Pages │            │  AWS EC2         │
    │ static files     │            │  nginx → Node    │
@@ -158,7 +158,11 @@ pm2 logs saarthios-api --lines 30
 
 You want `MongoDB connected` and `SaarthiOS API on http://localhost:5000`.
 
-### 3.5 nginx
+### 3.5 nginx — one block serves both
+
+Everything runs on one box, so serve the web app and the API from the **same address**: the app at
+`/`, the API at `/api`. No CORS, no second DNS record, and it works by raw IP before your domain is
+even pointed here.
 
 ```bash
 sudo nano /etc/nginx/sites-available/saarthios
@@ -166,14 +170,21 @@ sudo nano /etc/nginx/sites-available/saarthios
 
 ```nginx
 server {
-    listen 80;
-    server_name api.saarthios.space;
+    # `default_server` + `_` means this block answers on any hostname *and* on the
+    # bare IP. A `server_name saarthios.space` block is skipped when you browse to
+    # http://13.60.197.29, which silently falls through to nginx's default site.
+    listen 80 default_server;
+    server_name _;
+
+    root /var/www/html;
+    index index.html;
 
     # Bank statements and bills can be large. Nginx defaults to 1 MB and would
     # reject them before the app ever sees the upload.
     client_max_body_size 10M;
 
-    location / {
+    # The API. Must come before `location /` so it wins for /api paths.
+    location /api/ {
         proxy_pass http://127.0.0.1:5000;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
@@ -184,15 +195,30 @@ server {
         # AI replies can take up to 45 seconds. The default 60 is too close.
         proxy_read_timeout 120s;
     }
+
+    # Hashed filenames never change contents, so cache them hard.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # React Router owns the URLs. Without this, refreshing on /chat asks nginx
+    # for a file that does not exist and gets a 404.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
 }
 ```
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/saarthios /etc/nginx/sites-enabled/
-sudo rm /etc/nginx/sites-enabled/default
-sudo nginx -t                  # must say "test is successful"
-sudo systemctl restart nginx
+sudo rm -f /etc/nginx/sites-enabled/default     # or it fights for default_server
+sudo nginx -t                                   # must say "test is successful"
+sudo systemctl reload nginx
 ```
+
+> Only one block may be `default_server` on a port. Leaving Ubuntu's `default` site enabled makes
+> nginx refuse to start with *"duplicate default server"*.
 
 ### 3.6 Two things Cloudflare changes
 
@@ -247,10 +273,12 @@ npm ci
 > what the server does too. If `npm ci` fails but `npm install` works, your lockfile is out of step
 > and the server will fail the same way.
 
-The one setting is the API address, and it is baked in at **build time**. Create `.env.production`
-in the repo root:
+The one setting is the API address, baked in at **build time**. On a single box you leave it empty,
+because nginx serves the app and the API from the same address and the app just calls `/api` on
+itself. You only set it when the API lives somewhere else:
 
 ```ini
+# Only needed if the API is on a different host to the web app
 VITE_API_URL=https://api.saarthios.space
 ```
 
@@ -280,73 +308,52 @@ cd SaarthiOS_Web
 npm ci
 ```
 
-Set the API address before building — the value is compiled into the JavaScript:
+**Leave `VITE_API_URL` unset.** nginx serves the app and the API from the same address, so the app
+calls `/api` on itself. Setting it to another host would only invite CORS problems you do not need.
 
 ```bash
-echo "VITE_API_URL=https://api.saarthios.space" > .env.production
+rm -f .env.production        # if you created one earlier
 npm run build
 ```
 
-That writes `dist/`. Let nginx read it:
+Copy the result to where nginx looks:
 
 ```bash
-sudo chmod o+x /home/ubuntu                 # nginx must be able to traverse into your home
+sudo rm -f /var/www/html/index.nginx-debian.html    # nginx's welcome page
+sudo cp -r dist/* /var/www/html/
 ```
 
-Then add a second server block (see 4.3), point DNS at the box, and you are done.
+> Use `cp`, not `scp`. `scp` is for copying *between machines*; it happens to work locally but it is
+> the wrong tool and will confuse you later.
 
-To ship a change later:
+To ship a change:
 
 ```bash
 cd ~/SaarthiOS_Web
 git pull
 npm ci
-npm run build          # nginx picks up the new files immediately, no restart
+npm run build
+sudo cp -r dist/* /var/www/html/     # nginx serves it immediately, no reload
 ```
 
 > **Build on a machine with at least 2 GB of RAM.** On a `t2.micro` (1 GB) `npm run build` is
 > usually killed part-way through with no clear error. Either use `t3.small`, add swap, or build on
 > your laptop and copy `dist/` up with `scp`.
 
-### 4.3 The nginx block for the web app
+### 4.3 Checking it
 
 ```bash
-sudo nano /etc/nginx/sites-available/saarthios-web
+curl -I http://localhost/                 # 200, the app
+curl -I http://localhost/login            # 200 as well — try_files did its job
+curl -s http://localhost/api/health       # {"status":"ok"}
 ```
 
-```nginx
-server {
-    listen 80;
-    server_name saarthios.space www.saarthios.space;
-
-    root /home/ubuntu/SaarthiOS_Web/dist;
-    index index.html;
-
-    # React Router owns the URLs. Without this, refreshing on /chat asks nginx
-    # for a file that does not exist and gets a 404.
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # Hashed filenames never change contents, so they can be cached hard.
-    location /assets/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-}
-```
+If `/` works but `/login` returns 404, `try_files` is missing or another server block is answering.
+Confirm which one is:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/saarthios-web /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+nginx -T | grep -n "server_name\|default_server\|root "
 ```
-
-You now have two server blocks: this one on `saarthios.space`, and the API one on
-`api.saarthios.space` from step 3.5. nginx picks between them by hostname.
-
-> **403 Forbidden** means the `chmod o+x /home/ubuntu` line was skipped — nginx cannot get into the
-> folder to read `dist/`.
 
 ### 4.4 Or use Cloudflare Pages instead
 
@@ -431,7 +438,7 @@ Then **SSL/TLS → Overview**:
 - [ ] Upload a bill
 - [ ] Check share prices on Investments
 - [ ] Toggle dark mode
-- [ ] `https://api.saarthios.space/api/health` returns `{"status":"ok"}`
+- [ ] `http://your-ip/api/health` returns `{"status":"ok"}`
 
 ---
 
@@ -493,7 +500,7 @@ you write here overrides that wording.
 
 | Name | What to put |
 | --- | --- |
-| `VITE_API_URL` | `https://api.saarthios.space` |
+| `VITE_API_URL` | empty on a single box; `https://api.saarthios.space` only if the API is on another host |
 
 ### Needs no configuration
 
@@ -523,6 +530,8 @@ in, not what goes out.
 | --- | --- | --- |
 | Everything fails, console mentions CORS | API does not recognise the web app | `CLIENT_ORIGIN` must match exactly, no trailing slash |
 | Requests 404 with `/api/api/` in the URL | `/api` typed twice | Remove it from `VITE_API_URL`, redeploy |
+| App loads but `/login` 404s | Another server block is answering, or `try_files` is missing | `nginx -T \| grep -n "server_name\|default_server"` — a `server_name saarthios.space` block never matches a bare IP |
+| `duplicate default server` on reload | Ubuntu's default site is still enabled | `sudo rm /etc/nginx/sites-enabled/default` |
 | 404 when refreshing on `/chat` | Missing SPA rewrite | `public/_redirects` must be in the build |
 | One user's rate limit blocks everyone | Wrong proxy count | `TRUST_PROXY=2` behind Cloudflare |
 | Cloudflare 521 / 522 | Cannot reach the origin | Security group must allow Cloudflare ranges; check nginx is running |
