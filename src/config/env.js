@@ -42,6 +42,14 @@ const schema = z.object({
   TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(1),
 
   /**
+   * Which network interface to listen on. `0.0.0.0` accepts connections from
+   * anywhere the firewall allows; `127.0.0.1` accepts only from this machine,
+   * which is all nginx needs and makes the API unreachable directly even if a
+   * port gets opened by mistake.
+   */
+  BIND_HOST: z.string().default('0.0.0.0'),
+
+  /**
    * Operator notices. Set any of these to a sentence and it appears in the app
    * straight away — no redeploy, no code change. Blank means nothing is shown.
    * Use them when something is known to be broken so users read your words

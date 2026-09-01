@@ -10,7 +10,7 @@ async function main() {
   // from starting, or the app cannot even load to explain what is wrong.
   void connectDatabaseWithRetry();
 
-  const server = createApp().listen(env.PORT, () => {
+  const server = createApp().listen(env.PORT, env.BIND_HOST, () => {
     logger.info(`SaarthiOS API on http://localhost:${env.PORT} (${env.NODE_ENV})`);
 
     if (!isDatabaseReady()) {
@@ -22,6 +22,12 @@ async function main() {
       // the proxy instead of the visitor, and one user can lock out everyone.
       logger.info(`Trusting ${env.TRUST_PROXY} proxy hop(s) for client IPs`);
       logger.info(`Allowed origins: ${env.allowedOrigins.join(', ') || 'none'}`);
+
+      if (env.BIND_HOST === '0.0.0.0') {
+        logger.warn(
+          `Listening on all interfaces. Behind nginx, set BIND_HOST=127.0.0.1 so port ${env.PORT} cannot be reached directly.`
+        );
+      }
     }
 
     const ai = envLlmStatus();

@@ -92,9 +92,42 @@ Then **rotate your Atlas database password**: Atlas → Database Access → Edit
    > `t2.micro` and its 1 GB of RAM runs the API fine. You could not build the *web* app on it, but
    > Cloudflare Pages does that for you, so free tier is viable here.
 3. Key pair: create one, download the `.pem`, keep it safe — it is the only way in.
-4. Network settings → allow **SSH (22) from My IP** and **HTTP (80) from Anywhere** for now.
-   Port 443 and the Cloudflare lock-down come in 3.6.
+4. Network settings → see the ports table below.
 5. Launch, then **Elastic IP** → Allocate → Associate, or the address changes on every reboot.
+
+### 3.1a Which ports to open
+
+EC2 → your instance → **Security** tab → click the security group → **Edit inbound rules**.
+
+**Inbound — open exactly these three:**
+
+| Type | Port | Source | Why |
+| --- | --- | --- | --- |
+| SSH | 22 | **My IP** | So you can log in. Never `0.0.0.0/0` — bots hammer port 22 constantly |
+| HTTP | 80 | Anywhere `0.0.0.0/0` | The web app and the API. Later, restrict to Cloudflare ranges (3.6) |
+| HTTPS | 443 | Anywhere `0.0.0.0/0` | Add when you set up TLS in step 5 |
+
+**Do not open anything else.** In particular:
+
+| Port | Why people open it | Why you must not |
+| --- | --- | --- |
+| **5000** | "The API runs there" | nginx already reaches it on `127.0.0.1`. Opening it publishes the API *around* nginx — no rate limiting by real IP, no Cloudflare, no TLS. Anyone could hit `http://your-ip:5000/api` directly |
+| **27017** | "MongoDB" | Atlas is a service you connect *out* to. Nothing connects in |
+| **3000 / 5173** | Habit from `npm run dev` | Nothing listens there in production |
+
+**Outbound — leave the default `All traffic` rule alone.** The box needs to reach out to MongoDB
+Atlas, your AI provider, and Yahoo Finance for share prices. Security groups are stateful, so
+replies to inbound requests are allowed automatically; the outbound rule only governs connections
+the server *starts*.
+
+> **Quick check that 5000 is not exposed**, from your laptop:
+>
+> ```powershell
+> curl.exe -m 5 http://YOUR-ELASTIC-IP:5000/api/health
+> ```
+>
+> You want this to **time out or refuse**. If it returns `{"status":"ok"}`, port 5000 is open —
+> remove that inbound rule.
 
 ### 3.2 Install
 
@@ -128,6 +161,11 @@ nano ~/SaarthiOS/.env
 ```ini
 NODE_ENV=production
 PORT=5000
+
+# Only accept connections from this machine. nginx proxies to 127.0.0.1:5000,
+# so this loses nothing and makes port 5000 unreachable from outside even if
+# the security group is misconfigured.
+BIND_HOST=127.0.0.1
 
 MONGODB_URI=mongodb+srv://...
 JWT_SECRET=paste-generated-secret
@@ -495,6 +533,7 @@ you write here overrides that wording.
 | `MAX_CUSTOM_AGENTS` | unset → `2` | Agents each user may build |
 | `NOTICE_*` | blank | Outage messages, above |
 | `PORT` | `5000` | Port nginx forwards to |
+| `BIND_HOST` | `127.0.0.1` behind nginx | Stops the API being reachable except through nginx |
 
 ### Web (`SaarthiOS_Web`)
 
@@ -516,6 +555,8 @@ in, not what goes out.
 - [ ] Atlas password rotated, access limited to your Elastic IP
 - [ ] Neither repository contains `.env` (`git log --all -- .env` prints nothing)
 - [ ] Both repositories private
+- [ ] Security group opens **only** 22 (your IP), 80 and 443 — nothing on 5000
+- [ ] `curl http://your-ip:5000/api/health` from your laptop times out
 - [ ] Security group accepts web traffic **only from Cloudflare ranges**
 - [ ] SSL/TLS mode is Full (strict), not Flexible
 - [ ] `TRUST_PROXY=2`, and the startup log agrees
@@ -539,6 +580,8 @@ in, not what goes out.
 | Backend hangs, never says "MongoDB connected" | Atlas is blocking EC2 | Add the Elastic IP under Network Access |
 | Uploads fail around 1 MB | nginx default | `client_max_body_size 10M` |
 | 502 Bad Gateway | Node is not running | `pm2 logs saarthios-api` |
+| Browser just hangs on the IP | Port 80 not open in the security group | Add inbound HTTP 80 from `0.0.0.0/0` |
+| `http://your-ip:5000` answers | Port 5000 is exposed, bypassing nginx | Remove that inbound rule and set `BIND_HOST=127.0.0.1` |
 | `Cannot find module @rollup/rollup-linux-x64-gnu` | Lockfile was generated on Windows and omits the Linux binary | Already fixed — `git pull` then `npm ci`. If it returns, run `npm install` on Linux once and commit the lockfile |
 | `EBADENGINE ... unpdf requires node >=22` | Node 20 installed | Install Node 22: `curl -fsSL https://deb.nodesource.com/setup_22.x \| sudo -E bash - && sudo apt install -y nodejs` |
 | `npm run build` dies with no error | Out of RAM on a 1 GB box | Use `t3.small`, add swap, or build locally and `scp` the `dist/` folder up |
