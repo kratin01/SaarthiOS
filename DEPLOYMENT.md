@@ -15,7 +15,7 @@ This file belongs in the **SaarthiOS** (API) repository.
                             │
              ┌──────────────┴───────────────┐
              ▼                              ▼
-   saarthios.com                    api.saarthios.com
+   saarthios.space                    api.saarthios.space
    ┌──────────────────┐            ┌──────────────────┐
    │ Cloudflare Pages │            │  AWS EC2         │
    │ static files     │            │  nginx → Node    │
@@ -104,10 +104,10 @@ ssh -i "C:\path\to\key.pem" ubuntu@YOUR-ELASTIC-IP
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs nginx git
 sudo npm install -g pm2
-node -v      # expect v20.x
+node -v      # expect v22.x
 ```
 
 ### 3.3 Get the code
@@ -134,7 +134,7 @@ JWT_SECRET=paste-generated-secret
 ENCRYPTION_KEY=paste-other-generated-secret
 
 # Where the web app is served from. No trailing slash.
-CLIENT_ORIGIN=https://saarthios.com
+CLIENT_ORIGIN=https://saarthios.space
 
 # Cloudflare sits in front of nginx, so two hops. See 3.6.
 TRUST_PROXY=2
@@ -167,7 +167,7 @@ sudo nano /etc/nginx/sites-available/saarthios
 ```nginx
 server {
     listen 80;
-    server_name api.saarthios.com;
+    server_name api.saarthios.space;
 
     # Bank statements and bills can be large. Nginx defaults to 1 MB and would
     # reject them before the app ever sees the upload.
@@ -232,10 +232,10 @@ Add each as an inbound rule for ports 80 and 443. Keep SSH restricted to your ow
 Unlike the API, this is not a running program. `npm run build` turns it into a folder of plain
 files, and a host serves them. Nothing else happens at runtime.
 
-### 4.1 Build it yourself first
+### 4.1 Build it once on your own machine
 
-Do this once even though Cloudflare will build it for you. A build that fails in the Pages dashboard
-gives you a log to squint at; the same failure locally gives you your own machine to poke at.
+Worth doing before you touch the server: a build that fails on EC2 gives you an SSH session and a
+stack trace to squint at; the same failure locally gives you your own machine to poke at.
 
 ```powershell
 git clone https://github.com/kratin01/SaarthiOS_Web.git
@@ -244,14 +244,14 @@ npm ci
 ```
 
 > `npm ci` rather than `npm install` — it installs exactly what `package-lock.json` pins, which is
-> what Cloudflare does too. If `npm ci` fails but `npm install` works, your lockfile is out of step
-> and Pages will fail the same way.
+> what the server does too. If `npm ci` fails but `npm install` works, your lockfile is out of step
+> and the server will fail the same way.
 
 The one setting is the API address, and it is baked in at **build time**. Create `.env.production`
 in the repo root:
 
 ```ini
-VITE_API_URL=https://api.saarthios.com
+VITE_API_URL=https://api.saarthios.space
 ```
 
 No `/api` on the end and no trailing slash — the code appends `/api` itself.
@@ -269,9 +269,89 @@ npm run preview    # serves dist/ on http://localhost:4173 to check it
 `dist/` should contain `index.html`, an `assets/` folder, and `_redirects`. If `_redirects` is
 missing, routing will break once deployed — see 4.4.
 
-### 4.2 Deploy through Cloudflare Pages
+### 4.2 Build it on the server and let nginx serve it
 
-Pages rebuilds from GitHub on every push, which is what you want day to day.
+This is the path you are taking: one EC2 box serves both the web app and the API.
+
+```bash
+cd ~
+git clone https://github.com/kratin01/SaarthiOS_Web.git
+cd SaarthiOS_Web
+npm ci
+```
+
+Set the API address before building — the value is compiled into the JavaScript:
+
+```bash
+echo "VITE_API_URL=https://api.saarthios.space" > .env.production
+npm run build
+```
+
+That writes `dist/`. Let nginx read it:
+
+```bash
+sudo chmod o+x /home/ubuntu                 # nginx must be able to traverse into your home
+```
+
+Then add a second server block (see 4.3), point DNS at the box, and you are done.
+
+To ship a change later:
+
+```bash
+cd ~/SaarthiOS_Web
+git pull
+npm ci
+npm run build          # nginx picks up the new files immediately, no restart
+```
+
+> **Build on a machine with at least 2 GB of RAM.** On a `t2.micro` (1 GB) `npm run build` is
+> usually killed part-way through with no clear error. Either use `t3.small`, add swap, or build on
+> your laptop and copy `dist/` up with `scp`.
+
+### 4.3 The nginx block for the web app
+
+```bash
+sudo nano /etc/nginx/sites-available/saarthios-web
+```
+
+```nginx
+server {
+    listen 80;
+    server_name saarthios.space www.saarthios.space;
+
+    root /home/ubuntu/SaarthiOS_Web/dist;
+    index index.html;
+
+    # React Router owns the URLs. Without this, refreshing on /chat asks nginx
+    # for a file that does not exist and gets a 404.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Hashed filenames never change contents, so they can be cached hard.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/saarthios-web /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+You now have two server blocks: this one on `saarthios.space`, and the API one on
+`api.saarthios.space` from step 3.5. nginx picks between them by hostname.
+
+> **403 Forbidden** means the `chmod o+x /home/ubuntu` line was skipped — nginx cannot get into the
+> folder to read `dist/`.
+
+### 4.4 Or use Cloudflare Pages instead
+
+If you would rather not build on the server, Pages rebuilds from GitHub on every push and serves
+from Cloudflare's CDN. You would then skip 4.2 and 4.3 entirely.
 
 1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
 2. Pick **SaarthiOS_Web**
@@ -284,28 +364,13 @@ Pages rebuilds from GitHub on every push, which is what you want day to day.
    | Build output directory | `dist` |
    | Root directory | *(blank — the repo root is the app)* |
 
-4. Environment variables → add `VITE_API_URL` = `https://api.saarthios.com`
-
-   Set it here as well as in `.env.production`. The dashboard value is what Cloudflare's builds use;
-   the file is for your local ones.
+4. Environment variables → add `VITE_API_URL` = `https://api.saarthios.space`
 5. **Save and Deploy.**
 
 Because `VITE_API_URL` is read at build time, changing it later means triggering a **rebuild** —
 restarting or clearing cache will not pick it up.
 
-### 4.3 Deploying by hand, if you ever need to
-
-If Pages is down, or you want to ship a build without pushing:
-
-```powershell
-npm run build
-npx wrangler pages deploy dist --project-name=saarthios-web
-```
-
-First run opens a browser to authorise. The `dist/` folder is also just static files, so it will
-serve from S3 + CloudFront, or nginx on the same EC2 box, if you ever move off Pages.
-
-### 4.4 Why `_redirects` matters
+### 4.5 Why `_redirects` matters
 
 The repository contains `public/_redirects`:
 
@@ -313,11 +378,9 @@ The repository contains `public/_redirects`:
 /*    /index.html   200
 ```
 
-React Router owns the URLs. Ask a static host for `/chat` and there is no such file, so it returns
-404 — this line tells it to hand unknown paths back to the app instead. Vite copies everything in
-`public/` into `dist/` untouched, which is why it ends up in the build.
-
-If refreshing on a sub-page 404s after deploying, this file did not make it into `dist/`.
+That is the Cloudflare Pages equivalent of the `try_files` line above: hand unknown paths back to
+the app instead of 404ing. Vite copies everything in `public/` into `dist/` untouched, so it ends up
+in the build automatically. On nginx it is ignored and harmless.
 
 ---
 
@@ -327,8 +390,13 @@ Cloudflare → **DNS**:
 
 | Type | Name | Content | Proxy |
 | --- | --- | --- | --- |
-| A | `api` | your Elastic IP | **Proxied** (orange cloud) |
-| CNAME | `@` / `www` | your Pages domain | Proxied |
+| A | `@` | your Elastic IP | **Proxied** (orange cloud) |
+| A | `www` | your Elastic IP | Proxied |
+| A | `api` | your Elastic IP | Proxied |
+
+All three point at the same box — nginx tells them apart by hostname. (If you use Cloudflare Pages
+for the web app instead, make `@` and `www` a CNAME to your Pages domain and leave only `api` on the
+Elastic IP.)
 
 Then **SSL/TLS → Overview**:
 
@@ -348,8 +416,8 @@ Then **SSL/TLS → Overview**:
 1. **Atlas → Network Access** — add your Elastic IP as `YOUR-IP/32`. It is fixed, so lock it down
    properly instead of opening it to the world.
 2. **Google Cloud Console** → Credentials → your OAuth client → **Authorised JavaScript origins** →
-   add `https://saarthios.com`. Exact, no trailing slash.
-3. **`.env` on EC2** — confirm `CLIENT_ORIGIN=https://saarthios.com`, then
+   add `https://saarthios.space`. Exact, no trailing slash.
+3. **`.env` on EC2** — confirm `CLIENT_ORIGIN=https://saarthios.space`, then
    `pm2 restart saarthios-api`.
 
 ---
@@ -363,7 +431,7 @@ Then **SSL/TLS → Overview**:
 - [ ] Upload a bill
 - [ ] Check share prices on Investments
 - [ ] Toggle dark mode
-- [ ] `https://api.saarthios.com/api/health` returns `{"status":"ok"}`
+- [ ] `https://api.saarthios.space/api/health` returns `{"status":"ok"}`
 
 ---
 
@@ -413,7 +481,7 @@ you write here overrides that wording.
 | `JWT_SECRET` | Generated, 16+ chars | **Required** |
 | `NODE_ENV` | `production` | Tighter logging |
 | `ENCRYPTION_KEY` | Generated | Encrypts saved AI keys |
-| `CLIENT_ORIGIN` | `https://saarthios.com` | Without it the browser blocks every request |
+| `CLIENT_ORIGIN` | `https://saarthios.space` | Without it the browser blocks every request |
 | `TRUST_PROXY` | `2` behind Cloudflare | Real client IPs for rate limiting |
 | `GOOGLE_CLIENT_ID` | Your OAuth client ID | Blank hides the Google button |
 | `LLM_PROVIDER` / `LLM_API_KEY` | e.g. `gemini` + key | Default AI |
@@ -425,7 +493,7 @@ you write here overrides that wording.
 
 | Name | What to put |
 | --- | --- |
-| `VITE_API_URL` | `https://api.saarthios.com` |
+| `VITE_API_URL` | `https://api.saarthios.space` |
 
 ### Needs no configuration
 
@@ -462,6 +530,10 @@ in, not what goes out.
 | Backend hangs, never says "MongoDB connected" | Atlas is blocking EC2 | Add the Elastic IP under Network Access |
 | Uploads fail around 1 MB | nginx default | `client_max_body_size 10M` |
 | 502 Bad Gateway | Node is not running | `pm2 logs saarthios-api` |
+| `Cannot find module @rollup/rollup-linux-x64-gnu` | Lockfile was generated on Windows and omits the Linux binary | Already fixed — `git pull` then `npm ci`. If it returns, run `npm install` on Linux once and commit the lockfile |
+| `EBADENGINE ... unpdf requires node >=22` | Node 20 installed | Install Node 22: `curl -fsSL https://deb.nodesource.com/setup_22.x \| sudo -E bash - && sudo apt install -y nodejs` |
+| `npm run build` dies with no error | Out of RAM on a 1 GB box | Use `t3.small`, add swap, or build locally and `scp` the `dist/` folder up |
+| 403 Forbidden on the web app | nginx cannot read your home folder | `sudo chmod o+x /home/ubuntu` |
 | Everyone logged out after a deploy | `JWT_SECRET` changed | Expected; sign in again |
 | Saved AI keys stopped working | `ENCRYPTION_KEY` changed | Re-enter them in Settings |
 
