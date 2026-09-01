@@ -28,6 +28,12 @@ async function main() {
           `Listening on all interfaces. Behind nginx, set BIND_HOST=127.0.0.1 so port ${env.PORT} cannot be reached directly.`
         );
       }
+    } else if (env.TRUST_PROXY > 0) {
+      // A proxy in front means this is almost certainly a deployed box, where
+      // dev mode returns raw error details to the browser.
+      logger.warn(
+        `NODE_ENV is "${env.NODE_ENV}" but TRUST_PROXY=${env.TRUST_PROXY} suggests this is deployed. Set NODE_ENV=production, or internal error messages get sent to users.`
+      );
     }
 
     const ai = envLlmStatus();
