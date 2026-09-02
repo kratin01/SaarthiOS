@@ -54,7 +54,19 @@ export function capacity() {
 export async function listAgents(userId, { activeOnly = false } = {}) {
   const filter = { user: userId };
   if (activeOnly) filter.active = true;
-  return CustomAgent.find(filter).sort({ createdAt: 1 }).lean();
+
+  const agents = await CustomAgent.find(filter).sort({ createdAt: 1 }).lean();
+  if (!agents.length) return agents;
+
+  // Deleting an agent takes its entries with it, so the UI needs to be able to
+  // say how much history that is before asking.
+  const counts = await CustomEntry.aggregate([
+    { $match: { user: toObjectId(userId), agent: { $in: agents.map((a) => a._id) } } },
+    { $group: { _id: '$agent', count: { $sum: 1 } } }
+  ]);
+  const byAgent = new Map(counts.map((c) => [String(c._id), c.count]));
+
+  return agents.map((agent) => ({ ...agent, entryCount: byAgent.get(String(agent._id)) ?? 0 }));
 }
 
 export async function getAgent(userId, id) {
