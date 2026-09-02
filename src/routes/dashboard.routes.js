@@ -6,5 +6,6 @@ const router = Router();
 
 router.use(requireAuth);
 router.get('/', dashboard.overview);
+router.get('/activity', dashboard.activity);
 
 export default router;

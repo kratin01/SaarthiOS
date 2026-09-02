@@ -5,3 +5,5 @@ export { Investment } from './Investment.js';
 export { AgentRun } from './AgentRun.js';
 export { AiSetting } from './AiSetting.js';
 export { Conversation } from './Conversation.js';
+export { CustomAgent } from './CustomAgent.js';
+export { CustomEntry } from './CustomEntry.js';

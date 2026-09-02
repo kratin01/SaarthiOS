@@ -3,7 +3,7 @@
  * "insights" line. These insights are plain arithmetic, not AI — that keeps the
  * dashboard fast, free and always available.
  */
-import { Expense, Meal, Investment } from '../models/index.js';
+import { Expense, Meal, Investment, CustomEntry } from '../models/index.js';
 import { toObjectId } from '../utils/ids.js';
 import {
   startOfDay,
@@ -15,8 +15,12 @@ import {
   dayBuckets
 } from '../utils/dates.js';
 import * as expenseService from './expenseService.js';
+import { pageInfo } from '../utils/paging.js';
 
 export const DASHBOARD_PERIODS = ['today', 'month'];
+
+/** How many activity rows the dashboard opens with. */
+const RECENT_LIMIT = 8;
 
 /**
  * The window being shown, and the comparable one before it — today against
@@ -73,7 +77,7 @@ export async function getDashboard(user, period = 'today') {
     groupExpenseByDay(userId, window.seriesFrom, seriesTo),
     nutritionBetween(userId, window.from, window.to),
     nutritionByDay(userId, window.seriesFrom, seriesTo),
-    recentActivity(userId)
+    recentActivity(userId, { limit: RECENT_LIMIT, offset: 0 })
   ]);
 
   const loggedDays = countLoggedDays(nutritionSeries, window.from);
@@ -100,7 +104,13 @@ export async function getDashboard(user, period = 'today') {
       dailyAverage: loggedDays ? Math.round(nutrition.calories / loggedDays) : 0,
       series: nutritionSeries
     },
-    recent,
+    recent: recent.items,
+    recentPage: pageInfo({
+      limit: RECENT_LIMIT,
+      offset: 0,
+      total: recent.total,
+      count: recent.items.length
+    }),
     insights: buildInsights({
       user,
       window,
@@ -187,12 +197,33 @@ async function nutritionByDay(userId, from, to) {
   }));
 }
 
-/** The merged "Recent Activity" feed across all three domains. */
-async function recentActivity(userId, limit = 8) {
-  const [expenses, meals, investments] = await Promise.all([
-    Expense.find({ user: userId }).sort({ date: -1 }).limit(limit).lean(),
-    Meal.find({ user: userId }).sort({ date: -1 }).limit(limit).lean(),
-    Investment.find({ user: userId }).sort({ date: -1 }).limit(limit).lean()
+/**
+ * The merged "Recent activity" feed across every agent, including the ones a
+ * user built themselves.
+ *
+ * Four collections sorted by date cannot be paged with a database skip, so each
+ * one returns the first `offset + limit` rows and the merge is sliced. That is
+ * enough because no single collection can contribute more rows to the window
+ * than the window itself holds.
+ */
+async function recentActivity(userId, { limit = 8, offset = 0 } = {}) {
+  const reach = offset + limit;
+
+  const [expenses, meals, investments, custom, counts] = await Promise.all([
+    Expense.find({ user: userId }).sort({ date: -1, _id: -1 }).limit(reach).lean(),
+    Meal.find({ user: userId }).sort({ date: -1, _id: -1 }).limit(reach).lean(),
+    Investment.find({ user: userId }).sort({ date: -1, _id: -1 }).limit(reach).lean(),
+    CustomEntry.find({ user: userId })
+      .sort({ date: -1, _id: -1 })
+      .limit(reach)
+      .populate('agent', 'name')
+      .lean(),
+    Promise.all([
+      Expense.countDocuments({ user: userId }),
+      Meal.countDocuments({ user: userId }),
+      Investment.countDocuments({ user: userId }),
+      CustomEntry.countDocuments({ user: userId })
+    ])
   ]);
 
   const items = [
@@ -219,10 +250,29 @@ async function recentActivity(userId, limit = 8) {
       subtitle: labelise(i.type),
       amount: i.amount,
       date: i.date
+    })),
+    ...custom.map((c) => ({
+      id: String(c._id),
+      kind: 'custom',
+      title: c.title,
+      subtitle: c.agent?.name ?? 'Your agent',
+      amount: null,
+      date: c.date
     }))
   ];
 
-  return items.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, limit);
+  const ordered = items.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  return {
+    items: ordered.slice(offset, offset + limit),
+    total: counts.reduce((sum, n) => sum + n, 0)
+  };
+}
+
+/** The same feed on its own, so the dashboard can page through it. */
+export async function getRecentActivity(user, { limit = 8, offset = 0 } = {}) {
+  const { items, total } = await recentActivity(toObjectId(user._id), { limit, offset });
+  return { items, page: pageInfo({ limit, offset, total, count: items.length }) };
 }
 
 /* ── insights ────────────────────────────────────────────────────────── */
