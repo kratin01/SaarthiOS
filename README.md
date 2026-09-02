@@ -1,144 +1,146 @@
 # SaarthiOS — API
 
-The SaarthiOS backend. It handles accounts, stores personal data, and runs the AI agents.
+Backend for [SaarthiOS](https://saarthios.space): accounts, personal data, and the AI agents that
+read and write it.
 
-Runs on Node.js 18.17+ with plain ES modules — no build step, no TypeScript compile.
+JSON only — it never renders a page. The web client lives in
+[SaarthiOS_Web](https://github.com/kratin01/SaarthiOS_Web).
 
-> The web app lives in its own repository, **SaarthiOS_Web**. This one serves only JSON;
-> it never renders a page. See [DEPLOYMENT.md](DEPLOYMENT.md) for how the two fit together.
+**Stack:** Node.js 22 · Express · MongoDB (Mongoose) · Zod · JWT
 
 ---
 
-## Run it
+## How it works
 
-```powershell
+You type `spent 250 on lunch` and an orchestrator decides which agents that touches, runs them,
+and replies once.
+
+```
+request → auth → rate limit → validate → controller → service → MongoDB
+                                    │
+                              chat only ↓
+                          orchestrator → agents → AI provider
+```
+
+**The AI never writes to the database.** A model returns JSON, Zod validates it against a strict
+schema, and only then does a service persist it. A malformed or hallucinated response fails
+validation instead of corrupting data — this is the rule the whole design rests on.
+
+Any of 11 providers can back it (OpenAI, Gemini, Anthropic, Groq, Ollama and more). Swapping one
+is an environment variable, not a code change.
+
+---
+
+## Quick start
+
+Requires **Node.js 22+** and a MongoDB connection string.
+
+```bash
 npm install
-Copy-Item .env.example .env    # then fill in MONGODB_URI and your AI key
-npm run dev                    # auto-restarts on file changes
+cp .env.example .env     # fill in MONGODB_URI, JWT_SECRET and your AI key
+npm run dev
 ```
 
-The API listens on `http://localhost:5000`. Run the web app separately and it proxies `/api` here.
+Listens on `http://localhost:5000`. Start the web app separately — it proxies `/api` here.
 
-| Command        | What it does                                    |
-| -------------- | ----------------------------------------------- |
-| `npm run dev`  | Start with auto-reload                          |
-| `npm start`    | Start once (use this in production)             |
-| `npm run seed` | Fill an account with sample data — see below    |
-| `npm run migrate:conversations` | One-off: move pre-threads chat messages into a thread |
-| `npm run migrate:google-index` | One-off: repair the `googleId` index (see below) |
-
-```powershell
-npm run seed -- your@email.com
-```
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start with auto-reload |
+| `npm start` | Start once — use this in production |
+| `npm run seed -- you@example.com` | Fill an existing account with ~45 days of sample data |
+| `npm run migrate:conversations` | One-off: move pre-threads chat into a thread |
+| `npm run migrate:google-index` | One-off: repair the `googleId` index |
 
 ---
 
-## The folders
+## Configuration
+
+Every variable is validated on boot — a missing or malformed value stops the process with a clear
+message instead of failing later. Full list with comments in [.env.example](.env.example).
+
+| Variable | Notes |
+| --- | --- |
+| `MONGODB_URI` | **Required.** |
+| `JWT_SECRET` | **Required.** Any long random string. |
+| `ENCRYPTION_KEY` | Encrypts AI keys saved in Settings. Set it, or rotating `JWT_SECRET` breaks every saved key. |
+| `NODE_ENV` | `production` in production, otherwise internal errors are sent to users. |
+| `CLIENT_ORIGIN` | Exact origin(s) allowed by CORS, comma-separated, no trailing slash. |
+| `TRUST_PROXY` | Proxy hops in front: `1` for nginx alone, `2` behind Cloudflare. Too low and one visitor's rate limit locks out everyone. |
+| `BIND_HOST` | `127.0.0.1` behind nginx, so the port is unreachable from outside. |
+| `TZ` | The timezone "today" is bucketed in. Left unset on a UTC server, anyone ahead of UTC sees yesterday's data after midnight. |
+| `LLM_PROVIDER` / `LLM_API_KEY` | Default AI for everyone. Users can override with their own key. |
+| `GOOGLE_CLIENT_ID` | Optional. Blank hides the Google button; email sign-in keeps working. |
+| `NOTICE_*` | Set to a sentence and it appears in the app within a minute, no redeploy. |
+
+---
+
+## Project structure
 
 ```
 src/
-├── index.js        starts everything
-├── app.js          builds the Express app
-├── config/         settings, database connection, shared word lists
-├── models/         what the data looks like in MongoDB
-├── services/       reads and writes for each area of life
-├── ai/             the agents, the orchestrator and the AI providers
-├── controllers/    turns an HTTP request into a service call
-├── routes/         which URL goes to which controller
-├── middleware/     auth, validation, rate limits, error handling
-├── utils/          small shared helpers
-└── scripts/        one-off scripts (sample data)
+├── index.js       start up, connect, shut down cleanly
+├── app.js         assemble Express: security, CORS, logging, routes, errors
+├── config/        validated env, database connection, shared constants
+├── models/        Mongoose schemas
+├── services/      all reads and writes, one module per area of life
+├── ai/            orchestrator, agents, prompts, provider clients
+├── controllers/   HTTP request → service call
+├── routes/        URL → controller
+├── middleware/    auth, validation, rate limits, error handling
+├── utils/         dates, errors, logging, paging
+└── scripts/       seeds and one-off migrations
 ```
 
-Each of the bigger folders has its own README.
+`services/`, `ai/`, `routes/` and `models/` each have their own README explaining that layer.
 
 ---
 
-## Top-level files
+## Security
 
-| File          | What it does                                                                                              |
-| ------------- | --------------------------------------------------------------------------------------------------------- |
-| `src/index.js`| Connects to MongoDB, starts the HTTP server, and shuts down cleanly on Ctrl+C. Also prints whether AI is on. |
-| `src/app.js`  | Assembles Express: security headers, CORS, compression, JSON parsing, request logs, routes, error handling.  |
-
-## `config/`
-
-| File           | What it does                                                                                          |
-| -------------- | ------------------------------------------------------------------------------------------------------- |
-| `env.js`       | Reads `.env`, checks every value, and exits with a clear message if something is missing or malformed.    |
-| `db.js`        | Opens the one MongoDB connection the whole app shares, and logs connect/disconnect events.                |
-| `constants.js` | The allowed categories, meal types and investment types. Changing a list here changes it everywhere.       |
-
-## `utils/`
-
-| File             | What it does                                                                                    |
-| ---------------- | ------------------------------------------------------------------------------------------------- |
-| `ApiError.js`    | An error that is safe to show a user. Anything else is treated as a bug and hidden behind a 500.    |
-| `asyncHandler.js`| Wraps async route handlers so a failed promise reaches the error handler instead of hanging.        |
-| `logger.js`      | Timestamped `info` / `warn` / `error` logging.                                                      |
-| `dates.js`       | Start/end of day, month, and the `?range=month` → date window conversion. Also builds chart buckets. |
-| `ids.js`         | Converts a user id to a MongoDB ObjectId. Needed because aggregations do not cast automatically.    |
-
-## `scripts/`
-
-| File      | What it does                                                                       |
-| --------- | ------------------------------------------------------------------------------------ |
-| `seed.js` | Fills an existing account with ~45 days of believable sample data. Safe to re-run.    |
-
----
-
-## Where things happen
-
-```
-HTTP request
-    │
-    ▼
-middleware   auth → rate limit → validate the body
-    │
-    ▼
-route        picks the controller
-    │
-    ▼
-controller   pulls values off the request
-    │
-    ▼
-service      talks to MongoDB
-```
-
-Chat is the one path that takes a detour through `ai/` before reaching the services.
-
----
-
-## Security notes
-
-* Passwords are hashed with bcrypt and never returned, even by accident — the User model strips the
-  hash in `toJSON()`.
-* Login returns the same message for a wrong password and an unknown email, so the API cannot be
+- Passwords are hashed with bcrypt, and the `User` model strips the hash in `toJSON()`.
+- Sign-in returns the same message for a wrong password and an unknown email, so the API can't be
   used to discover which addresses have accounts.
-* Google ID tokens are verified server-side against Google's public keys, and only accepted when the
-  email is marked verified. The browser is never trusted.
-* API keys saved from Settings are encrypted with AES-256-GCM before they touch MongoDB, and are
-  never sent back to the browser — only a masked hint.
-* Every query is scoped to `req.user._id`, so one account can never read another's data.
-* Sessions are stateless JWTs. A token that is expired, tampered with, signed by a different
-  secret, or belongs to a deleted account is rejected the same way — 401, and the client clears it
-  and returns to sign-in.
-* Rate limits sit on the whole API, tighter on auth, tighter still on chat.
-* API keys stay on the server. The browser only ever learns *whether* AI is configured.
+- Google ID tokens are verified server-side against Google's public keys and only accepted when
+  the email is verified. The browser is never trusted.
+- AI keys users save are encrypted with AES-256-GCM before storage and never returned — the client
+  only receives a masked hint.
+- Every query is scoped to `req.user._id`, so one account cannot reach another's data.
+- Rate limits apply across the API, tighter on auth, tighter still on chat.
 
 ---
 
-## Sign in with Google
+## Deployment
 
-Optional. Set one value in `.env` and restart:
+Runs under PM2 behind nginx. The web app is built to static files and served from the same origin,
+so `/` is the app and `/api` proxies here — no CORS in production and no second domain.
 
-```ini
-GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
+Two settings are easy to get wrong and silent when you do: `TRUST_PROXY` (wrong value makes every
+visitor share one rate limit) and `TZ` (wrong value shows yesterday's data). Both are printed at
+startup in production so a mismatch is visible in the logs.
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome.
+
+```bash
+git clone https://github.com/kratin01/SaarthiOS.git
+cd SaarthiOS && npm install
+cp .env.example .env
+npm run dev
 ```
 
-There is **no client secret**. This uses the Google Identity Services ID-token flow: the browser
-gets a signed token, the server verifies it, and then issues its own JWT like any other sign-in.
+Before opening a PR:
 
-Leave it blank and the button simply does not appear — email and password keep working.
+1. **Never let a model write to the database.** New AI behaviour returns JSON, gets a Zod schema,
+   and a service persists it.
+2. **Keep rules in `services/`.** Controllers read the request and call a service; they don't hold
+   business logic.
+3. **Scope every query to the signed-in user.** No exceptions.
+4. **Add new config to `config/env.js`** with a Zod rule and a default, and document it in
+   `.env.example`.
+5. **Never commit secrets.** `.env` is ignored; keep it that way.
 
-See [src/services/googleAuthService.js](src/services/googleAuthService.js) for the verification step.
+Say what you changed and how you verified it. If it touches money, calories or dates, mention what
+you tested against — those are the parts people actually rely on.
