@@ -1,11 +1,23 @@
 import mongoose from 'mongoose';
-import { EXPENSE_CATEGORIES, SOURCES } from '../config/constants.js';
+import { SOURCES } from '../config/constants.js';
+import { MAX_CATEGORY_LENGTH } from '../utils/categories.js';
 
 const expenseSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     amount: { type: Number, required: true, min: 0 },
-    category: { type: String, enum: EXPENSE_CATEGORIES, default: 'other', index: true },
+    /**
+     * No enum: users can invent their own categories. The allowed set is per
+     * user, so it is checked in the service where their list is known.
+     */
+    category: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      maxlength: MAX_CATEGORY_LENGTH,
+      default: 'other',
+      index: true
+    },
     merchant: { type: String, trim: true, maxlength: 120, default: '' },
     note: { type: String, trim: true, maxlength: 300, default: '' },
     date: { type: Date, required: true, default: Date.now, index: true },

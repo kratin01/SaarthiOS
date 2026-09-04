@@ -6,7 +6,7 @@
  * rejected — the AI can never invent a category or a negative amount.
  */
 import { z } from 'zod';
-import { EXPENSE_CATEGORIES, MEAL_TYPES, INVESTMENT_TYPES } from '../config/constants.js';
+import { MEAL_TYPES, INVESTMENT_TYPES, BODY_GOALS } from '../config/constants.js';
 
 const money = z.coerce.number().finite().min(0).max(100_000_000);
 
@@ -46,9 +46,20 @@ const isoDate = z
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .nullish();
 
+/**
+ * A category name can be anything the user invented, so this never rejects.
+ * Losing a whole expense because a model returned an odd category would be a
+ * far worse outcome than filing it under "other".
+ */
+const categoryText = z
+  .any()
+  .transform((v) => (typeof v === 'string' ? v.slice(0, 60) : ''));
+
 export const expenseDraftSchema = z.object({
   amount: money,
-  category: z.enum(EXPENSE_CATEGORIES).catch('other'),
+  // The set of valid names is per user, so `expenseService.resolveCategory`
+  // decides what this becomes.
+  category: categoryText,
   merchant: text(120),
   note: text(300),
   date: isoDate
@@ -115,6 +126,39 @@ export const questionSchema = z.object({
   range: z.enum(['today', 'week', 'month', 'last_month', 'year', 'all']).catch('month')
 });
 
+/**
+ * Settings the user can change by talking, such as a monthly budget or their
+ * height and weight.
+ *
+ * Every field is optional and `null` means the same as absent. The shared
+ * `number()` helper is deliberately not used: it turns a missing value into 0,
+ * which here would wipe a budget instead of leaving it alone. An out-of-range
+ * value is dropped rather than failing, so one bad figure cannot cost the user
+ * the rest of the message.
+ */
+const optionalNumber = (min, max) =>
+  z.coerce
+    .number()
+    .finite()
+    .min(min)
+    .max(max)
+    .nullish()
+    .transform((v) => (v == null ? undefined : v))
+    .catch(undefined);
+
+export const profileDraftSchema = z.object({
+  monthlyBudget: optionalNumber(0, 100000000),
+  dailyCalorieGoal: optionalNumber(500, 20000),
+  dailyProteinGoal: optionalNumber(10, 1000),
+  heightCm: optionalNumber(50, 260),
+  weightKg: optionalNumber(20, 400),
+  bodyGoal: z
+    .enum(BODY_GOALS)
+    .nullish()
+    .transform((v) => v ?? undefined)
+    .catch(undefined)
+});
+
 /** What the orchestrator asks the model to produce for every chat message. */
 export const planSchema = z.object({
   intent: z.enum(['record', 'query', 'chat', 'clarify']).catch('chat'),
@@ -122,6 +166,7 @@ export const planSchema = z.object({
   meals: list(mealDraftSchema),
   investments: list(investmentDraftSchema),
   custom: list(customDraftSchema),
+  profile: profileDraftSchema.nullish().transform((v) => v ?? {}),
   question: questionSchema.nullish(),
   /** The single short question to ask back when intent is `clarify`. */
   clarify: text(300),
@@ -130,11 +175,11 @@ export const planSchema = z.object({
 
 /**
  * Shape of the HTTP body for manually created records.
- * The enums go back to being strict here: a form posting an unknown category is
- * a caller bug and should get a 400, not be quietly filed under "other".
+ * The enums go back to being strict here: a form posting an unknown meal type
+ * is a caller bug and should get a 400. Category is the exception, because
+ * naming a new one is a feature rather than a mistake.
  */
 export const expenseInputSchema = expenseDraftSchema.extend({
-  category: z.enum(EXPENSE_CATEGORIES).default('other'),
   date: z.coerce.date().optional()
 });
 

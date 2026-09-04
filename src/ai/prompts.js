@@ -32,7 +32,7 @@ function describeCustomAgents(agents) {
  * Step 1 — turn one sentence into a structured plan.
  * The model does NOT touch the database; it only fills in this JSON shape.
  */
-export function buildPlannerPrompt({ today, currency, customAgents = [] }) {
+export function buildPlannerPrompt({ today, currency, customAgents = [], categories = EXPENSE_CATEGORIES }) {
   const hasCustom = customAgents.length > 0;
   const slugs = customAgents.map((a) => `"${a.slug}"`);
 
@@ -68,9 +68,10 @@ Today's date is ${today}. The user's currency is ${currency}.
 Return exactly this shape:
 {
   "intent": "record" | "query" | "clarify" | "chat",
-  "expenses": [ { "amount": number, "category": ${list(EXPENSE_CATEGORIES)}, "merchant": string, "note": string, "date": "YYYY-MM-DD" } ],
+  "expenses": [ { "amount": number, "category": string, "merchant": string, "note": string, "date": "YYYY-MM-DD" } ],
   "meals": [ { "mealType": ${list(MEAL_TYPES)}, "items": [ { "name": string, "quantity": string, "calories": number, "protein": number, "carbs": number, "fat": number } ], "note": string, "date": "YYYY-MM-DD" } ],
   "investments": [ { "amount": number, "type": ${list(INVESTMENT_TYPES)}, "instrument": string, "quantity": number|null, "symbol": string, "note": string, "date": "YYYY-MM-DD" } ],${customShape}
+  "profile": { "monthlyBudget": number, "dailyCalorieGoal": number, "dailyProteinGoal": number, "heightCm": number, "weightKg": number, "bodyGoal": "lean" | "normal" | "bulky" },
   "question": { "domains": ["expense" | "health" | "investment"${customDomains}], "range": "today" | "week" | "month" | "last_month" | "year" | "all" } | null,
   "clarify": string,
   "message": string
@@ -94,6 +95,38 @@ Rules:
 6. Use "date" only when the user clearly refers to another day, otherwise use ${today}.
 7. Never invent data the user did not mention.
 8. Put nothing outside the JSON object. Use "" for empty text and [] for empty lists, never null.
+
+Expense categories — the user's list is:
+${categories.join(', ')}
+
+8d. Pick the best fit from that list. Use it exactly as written.
+8e. If the user names a category themselves, use their word even if it is not on the list, and
+    even if it is a person's name. "I gave 500 to Rahul, put it under rahul" is category "rahul".
+    A new name is created automatically, so never refuse and never substitute "other" for a
+    category the user actually asked for.
+8f. If the message is a payment with no clear category and nothing on the list obviously fits,
+    for example "gave 2000 to this guy", set intent to "clarify" and ask which category to use,
+    listing the ones above and offering a new one. For example:
+      "Which category should that go under? I have food, groceries, transport, bills and a few
+       others, or tell me a new name."
+    Do not silently file it under "other".
+8g. Only ask once. If your previous message asked which category to use and the user has now
+    answered, even with a single word, record the expense with that category.
+8h. If the user's wording already implies a category on the list, just use it. Never ask about
+    something obvious like a restaurant bill or a cab fare.
+
+Settings the user can change by talking:
+8i. "profile" holds settings, not events. Use it when the user states something about themselves
+    rather than something that happened: "my monthly budget is 30000", "set my calorie goal to
+    2200", "I am 175 cm and 70 kg", "I want to lose fat".
+8j. Include ONLY the keys the user actually mentioned, and leave "profile" as {} otherwise.
+    Never repeat a value they did not just give you.
+8k. "bodyGoal" is "lean" for losing fat, "bulky" for building muscle, "normal" for maintaining.
+8l. A budget is a setting, never an expense. "My budget is 30000" fills "profile", not "expenses".
+    "I spent 30000" is an expense. Weight as a setting is "weightKg"; weight the user is logging
+    over time belongs to their own agent if they built one.
+8m. Setting something and recording something can happen in one message, and both are allowed
+    together.
 
 Buying shares:
 8a. For type "stocks", fill "quantity" with the number of shares and "instrument" with the
@@ -178,7 +211,7 @@ Rules:
  * Nothing it returns is saved automatically — the user reviews it first, so the
  * priority is not missing rows and not inventing them, in that order.
  */
-export function buildDocumentPrompt({ today, currency }) {
+export function buildDocumentPrompt({ today, currency, categories = EXPENSE_CATEGORIES }) {
   return `You extract transactions from a financial document for SaarthiOS.
 Reply with one JSON object and nothing else.
 
@@ -188,7 +221,7 @@ Return exactly this shape:
 {
   "documentType": string,
   "summary": string,
-  "expenses": [ { "amount": number, "category": ${list(EXPENSE_CATEGORIES)}, "merchant": string, "note": string, "date": "YYYY-MM-DD" } ],
+  "expenses": [ { "amount": number, "category": ${list(categories)}, "merchant": string, "note": string, "date": "YYYY-MM-DD" } ],
   "meals": [ { "mealType": ${list(MEAL_TYPES)}, "items": [ { "name": string, "quantity": string, "calories": number, "protein": number, "carbs": number, "fat": number } ], "note": string, "date": "YYYY-MM-DD" } ],
   "investments": [ { "amount": number, "type": ${list(INVESTMENT_TYPES)}, "instrument": string, "quantity": number|null, "symbol": string, "note": string, "date": "YYYY-MM-DD" } ]
 }

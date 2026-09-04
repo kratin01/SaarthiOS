@@ -19,12 +19,14 @@ import {
   expenseAgent,
   healthAgent,
   investmentAgent,
+  profileAgent,
   analystAgent,
   buildCustomAgent
 } from './agents/index.js';
 import { resolveForUser } from '../services/aiSettingsService.js';
 import * as customAgentService from '../services/customAgentService.js';
 import { toDateKey } from '../utils/dates.js';
+import { categoriesFor } from '../utils/categories.js';
 import { logger } from '../utils/logger.js';
 
 /** How much of the thread the agents get to see. */
@@ -68,7 +70,8 @@ export async function handleMessage({ user, message, conversation }) {
       system: buildPlannerPrompt({
         today: toDateKey(new Date()),
         currency: user.currency,
-        customAgents: customDefinitions
+        customAgents: customDefinitions,
+        categories: categoriesFor(user)
       }),
       user: buildConversationContext(history) + message,
       schema: planSchema
@@ -124,6 +127,15 @@ export async function handleMessage({ user, message, conversation }) {
         );
       }
 
+      if (Object.values(plan.profile ?? {}).some((v) => v !== undefined)) {
+        agentsUsed.push('profile');
+        jobs.push(
+          profileAgent
+            .run({ ...context, draft: plan.profile })
+            .then((r) => ({ agent: profileAgent, result: r }))
+        );
+      }
+
       // Drafts naming an agent the user does not have (or has paused) are
       // dropped rather than guessed at.
       for (const [slug, drafts] of groupBySlug(plan.custom)) {
@@ -136,7 +148,10 @@ export async function handleMessage({ user, message, conversation }) {
       const outcomes = await Promise.all(jobs);
 
       for (const { agent, result } of outcomes) {
-        step(agent.name, agent.label, result.summary, result.created.length ? 'done' : 'skipped');
+        // The profile agent changes settings rather than creating rows, so it
+        // reports on `changed` instead.
+        const did = agent.name === 'profile' ? result.changed.length : result.created.length;
+        step(agent.name, agent.label, result.summary, did ? 'done' : 'skipped');
         if (agent.name === 'expense') created.expenses = result.created.length;
         if (agent.name === 'health') created.meals = result.created.length;
         if (agent.name === 'investment') created.investments = result.created.length;
@@ -203,6 +218,10 @@ function composeSaveReply(outcomes, currency) {
   const parts = [];
 
   for (const { agent, result } of outcomes) {
+    if (agent.name === 'profile') {
+      if (result.changed.length) parts.push(result.summary);
+      continue;
+    }
     if (!result.created.length) continue;
 
     if (agent.name === 'expense') {

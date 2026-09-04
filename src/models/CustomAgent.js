@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { CUSTOM_FIELD_TYPES, CUSTOM_AGENT_ICONS } from '../config/constants.js';
+import { CUSTOM_FIELD_TYPES, STORABLE_AGENT_ICONS } from '../config/constants.js';
 
 /**
  * An agent the user built themselves.
@@ -35,7 +35,7 @@ const customAgentSchema = new mongoose.Schema(
       required: true,
       validate: [(v) => v.length > 0 && v.length <= 6, 'An agent needs between 1 and 6 stats.']
     },
-    icon: { type: String, enum: CUSTOM_AGENT_ICONS, default: 'spark' },
+    icon: { type: String, enum: STORABLE_AGENT_ICONS, default: 'spark' },
     /** Paused agents keep their data but leave the prompt and the sidebar. */
     active: { type: Boolean, default: true }
   },

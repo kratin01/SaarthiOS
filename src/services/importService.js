@@ -15,6 +15,7 @@ import * as expenseService from './expenseService.js';
 import * as healthService from './healthService.js';
 import * as investmentService from './investmentService.js';
 import { toDateKey } from '../utils/dates.js';
+import { categoriesFor } from '../utils/categories.js';
 import { parseDraftDate } from '../ai/agents/shared.js';
 
 export async function extractFromFile(user, file) {
@@ -28,7 +29,11 @@ export async function extractFromFile(user, file) {
 
   const plan = await askJson({
     config,
-    system: buildDocumentPrompt({ today: toDateKey(new Date()), currency: user.currency }),
+    system: buildDocumentPrompt({
+      today: toDateKey(new Date()),
+      currency: user.currency,
+      categories: categoriesFor(user)
+    }),
     user: instruction,
     images: document.images,
     schema: documentPlanSchema,

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { customEntryInputSchema, customEntryUpdateSchema } from '../ai/schemas.js';
 import { readPaging, pageInfo } from '../utils/paging.js';
-import { CUSTOM_FIELD_TYPES, CUSTOM_AGENT_ICONS } from '../config/constants.js';
+import { CUSTOM_FIELD_TYPES, STORABLE_AGENT_ICONS } from '../config/constants.js';
 import * as customAgentService from '../services/customAgentService.js';
 
 const fieldSchema = z.object({
@@ -17,7 +17,7 @@ export const createSchema = z.object({
   description: z.string().max(160).default(''),
   prompt: z.string().max(1000).default(''),
   fields: z.array(fieldSchema).min(1).max(6),
-  icon: z.enum(CUSTOM_AGENT_ICONS).default('spark'),
+  icon: z.enum(STORABLE_AGENT_ICONS).default('spark'),
   active: z.boolean().default(true)
 });
 

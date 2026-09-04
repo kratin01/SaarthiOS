@@ -3,15 +3,50 @@
  * so business rules exist in exactly one place.
  */
 import { Expense } from '../models/Expense.js';
+import { User } from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
 import { toObjectId } from '../utils/ids.js';
 import { resolveRange, dayBuckets } from '../utils/dates.js';
+import {
+  MAX_CUSTOM_CATEGORIES,
+  categoriesFor,
+  isBuiltInCategory,
+  normaliseCategory
+} from '../utils/categories.js';
 
-export function createExpense(userId, input, { source = 'manual', agentRun = null } = {}) {
+/**
+ * Turns whatever was typed or predicted into a category this user owns,
+ * registering it the first time it is seen.
+ *
+ * Returns "other" rather than throwing when the list is full: refusing to save
+ * someone's expense over a category name would be the wrong trade.
+ */
+export async function resolveCategory(userId, raw) {
+  const category = normaliseCategory(raw);
+  if (!category) return 'other';
+  if (isBuiltInCategory(category)) return category;
+
+  const user = await User.findById(userId).select('customCategories');
+  if (!user) return 'other';
+
+  if (user.customCategories.includes(category)) return category;
+  if (user.customCategories.length >= MAX_CUSTOM_CATEGORIES) return 'other';
+
+  // Atomic so two expenses saved together cannot add the same name twice.
+  await User.updateOne({ _id: userId }, { $addToSet: { customCategories: category } });
+  return category;
+}
+
+export async function listCategories(userId) {
+  const user = await User.findById(userId).select('customCategories').lean();
+  return categoriesFor(user);
+}
+
+export async function createExpense(userId, input, { source = 'manual', agentRun = null } = {}) {
   return Expense.create({
     user: userId,
     amount: input.amount,
-    category: input.category ?? 'other',
+    category: await resolveCategory(userId, input.category),
     merchant: input.merchant ?? '',
     note: input.note ?? '',
     date: input.date ?? new Date(),
@@ -54,6 +89,10 @@ export async function updateExpense(userId, id, input) {
   const changes = Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined)
   );
+  // Editing a row is another way to invent a category, so it registers too.
+  if (changes.category !== undefined) {
+    changes.category = await resolveCategory(userId, changes.category);
+  }
   const updated = await Expense.findOneAndUpdate(
     { _id: id, user: userId },
     { $set: changes },

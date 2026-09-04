@@ -38,7 +38,7 @@ export const INVESTMENT_TYPES = [
 ];
 
 /** `custom` covers every user-defined agent, whatever they named it. */
-export const AGENTS = ['expense', 'health', 'investment', 'custom'];
+export const AGENTS = ['expense', 'health', 'investment', 'profile', 'custom'];
 
 /** Where a record came from: a form, extracted from chat, or read off a file. */
 export const SOURCES = ['manual', 'chat', 'import'];
@@ -48,14 +48,37 @@ export const AGENT_META = {
   expense: { label: 'Expense Agent', color: '#C08457' },
   health: { label: 'Health Agent', color: '#6F9E7E' },
   investment: { label: 'Investment Agent', color: '#6B87A8' },
+  profile: { label: 'Profile Agent', color: '#7C8CA8' },
   custom: { label: 'Custom Agent', color: '#8E7CC3' }
 };
 
 /** What a custom agent can track. Kept deliberately small — see the README. */
 export const CUSTOM_FIELD_TYPES = ['number', 'text'];
 
-/** Icon names the client knows how to draw. */
-export const CUSTOM_AGENT_ICONS = ['spark', 'leaf', 'trend', 'wallet', 'home', 'chat'];
+/**
+ * Icon names the client knows how to draw.
+ *
+ * Deliberately none of the sidebar icons: an agent using the wallet or leaf is
+ * indistinguishable from Expenses or Health in the nav. The old sidebar names
+ * stay accepted so agents created before this still validate when edited.
+ */
+export const CUSTOM_AGENT_ICONS = [
+  'spark',
+  'dumbbell',
+  'book',
+  'droplet',
+  'heart',
+  'target',
+  'music',
+  'brush',
+  'paw',
+  'moon'
+];
+
+const LEGACY_AGENT_ICONS = ['leaf', 'trend', 'wallet', 'home', 'chat'];
+
+/** What the model accepts. The picker only offers `CUSTOM_AGENT_ICONS`. */
+export const STORABLE_AGENT_ICONS = [...CUSTOM_AGENT_ICONS, ...LEGACY_AGENT_ICONS];
 
 /**
  * Slugs a custom agent may not take: the built-in domains the planner already

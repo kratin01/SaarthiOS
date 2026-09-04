@@ -24,6 +24,12 @@ const userSchema = new mongoose.Schema(
     googleId: { type: String, default: undefined },
     avatarUrl: { type: String, default: '', maxlength: 500 },
     currency: { type: String, default: 'INR', maxlength: 8 },
+    /**
+     * Categories this user invented, beyond the built-in list. Stored on the
+     * user rather than derived from their expenses so a category survives
+     * deleting the last row that used it.
+     */
+    customCategories: { type: [String], default: [] },
     /** Used by the dashboard to show "x% of budget used". Null = no budget set. */
     monthlyBudget: { type: Number, default: null, min: 0 },
     dailyCalorieGoal: { type: Number, default: 2000, min: 0 },
