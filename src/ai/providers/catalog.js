@@ -31,15 +31,17 @@ export const PROVIDER_CATALOG = {
     kind: 'gemini',
     label: 'Google Gemini',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    // `-latest` avoids pinned versions being retired. Lite, because the bigger
-    // flash models now "think" by default — 15s+ for what is simple extraction.
-    model: 'gemini-flash-lite-latest',
+    // Pinned on purpose. `gemini-flash-lite-latest` is the cheapest tier and is
+    // regularly 503 "experiencing high demand" or 30s+ when it does answer,
+    // which reads to a user as the app being broken. 2.5-flash replies in
+    // about a second and is not thinking-by-default like `flash-latest`.
+    model: 'gemini-2.5-flash',
     keyHelp: 'aistudio.google.com → Get API key',
     suggested: [
-      { id: 'gemini-flash-lite-latest', note: 'Fastest — recommended' },
-      { id: 'gemini-flash-latest', note: 'Smarter, but reasons first so it is slower' },
-      { id: 'gemini-pro-latest', note: 'Most capable, slowest' },
-      { id: 'gemini-2.5-flash', note: 'Pinned stable version' }
+      { id: 'gemini-2.5-flash', note: 'Fast and steady — recommended' },
+      { id: 'gemini-flash-latest', note: 'Newest flash, slower and busier' },
+      { id: 'gemini-flash-lite-latest', note: 'Cheapest, but often overloaded' },
+      { id: 'gemini-pro-latest', note: 'Most capable, slowest' }
     ]
   },
   anthropic: {

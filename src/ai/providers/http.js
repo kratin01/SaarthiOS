@@ -33,7 +33,13 @@ async function request(url, { method, headers, body, timeoutMs, providerLabel })
   const text = await response.text();
 
   if (!response.ok) {
-    throw ApiError.unavailable(explain(response.status, providerLabel), shortenProviderError(text));
+    const error = ApiError.unavailable(
+      explain(response.status, providerLabel),
+      shortenProviderError(text)
+    );
+    // Carried so `askJson` can retry the statuses that are worth retrying.
+    error.providerStatus = response.status;
+    throw error;
   }
 
   try {
@@ -53,6 +59,11 @@ function explain(status, providerLabel) {
   }
   if (status === 404) {
     return `${providerLabel} does not have that model. Pick another one in Settings.`;
+  }
+  // Worth separating from other 5xx: it is the model that is busy, not the
+  // provider that is broken, and switching model in Settings fixes it now.
+  if (status === 503) {
+    return `That model is overloaded right now. It usually clears in a few minutes, or pick a different model in Settings.`;
   }
   if (status >= 500) {
     return `${providerLabel} is having trouble right now. Try again shortly.`;

@@ -45,6 +45,24 @@ export async function askText({ config, system, user, temperature, maxTokens }) 
 }
 
 /**
+ * One quick retry when the model itself is busy.
+ *
+ * A 503 from Gemini is "this model is experiencing high demand", which its own
+ * guidance calls temporary, and it fails in a couple of seconds. Timeouts are
+ * deliberately not retried: the user has already waited the full window.
+ */
+async function completeWithRetry(provider, request) {
+  try {
+    return await provider.complete(request);
+  } catch (error) {
+    if (error.providerStatus !== 503) throw error;
+    logger.warn(`${provider.model} is overloaded, retrying once`);
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    return provider.complete(request);
+  }
+}
+
+/**
  * JSON answer, validated against a Zod schema.
  * One automatic retry: if the first reply does not fit the schema we tell the
  * model exactly what was wrong and ask again. After that we give up loudly.
@@ -57,7 +75,7 @@ export async function askJson({ config, system, user, images, schema, temperatur
     const started = Date.now();
     let raw;
     try {
-      raw = await provider.complete({
+      raw = await completeWithRetry(provider, {
         system,
         user: prompt,
         images,
