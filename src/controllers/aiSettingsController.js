@@ -30,21 +30,27 @@ export const draftSchema = z.object({
 
 /** Current status plus everything the dropdowns need. */
 export const status = asyncHandler(async (req, res) => {
-  res.json({
-    ...(await aiSettings.statusForUser(req.user._id)),
-    providers: publicCatalog()
-  });
+  res.json(await fullStatus(req.user._id));
 });
 
 export const save = asyncHandler(async (req, res) => {
   await aiSettings.saveForUser(req.user._id, req.body);
-  res.json(await aiSettings.statusForUser(req.user._id));
+  res.json(await fullStatus(req.user._id));
 });
 
 export const clear = asyncHandler(async (req, res) => {
   await aiSettings.clearForUser(req.user._id);
-  res.json(await aiSettings.statusForUser(req.user._id));
+  res.json(await fullStatus(req.user._id));
 });
+
+/**
+ * Every route that returns settings returns the same shape, catalogue included.
+ * Saving used to answer without `providers`, and a client that trusted the
+ * response lost the list it renders the form from.
+ */
+async function fullStatus(userId) {
+  return { ...(await aiSettings.statusForUser(userId)), providers: publicCatalog() };
+}
 
 /** Lists the models the given key can actually use. */
 export const models = asyncHandler(async (req, res) => {
