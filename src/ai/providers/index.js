@@ -47,13 +47,20 @@ export function resolveProviderConfig({ provider, apiKey = '', model = '', baseU
   };
 
   if (!resolved.apiKey && !preset.keyOptional) {
-    return { ...resolved, ok: false, reason: 'No API key set.' };
+    return { ...resolved, ok: false, reason: 'No API key set. Paste one under API key.' };
   }
   if (!resolved.baseUrl) {
-    return { ...resolved, ok: false, reason: 'No base URL set.' };
+    return { ...resolved, ok: false, reason: 'No base URL set. This provider needs the address of the server.' };
   }
   if (!resolved.model) {
-    return { ...resolved, ok: false, reason: 'No model set.' };
+    return {
+      ...resolved,
+      ok: false,
+      // This provider ships no default, so the form looks complete while the
+      // one field that matters is still empty.
+      reason:
+        'No model set. Pick one under Model, or press "Load from provider" to list what your key allows.'
+    };
   }
 
   return { ...resolved, ok: true, reason: null };

@@ -5,6 +5,7 @@
  *   kind        which adapter file knows how to talk to it
  *   baseUrl     the default API endpoint
  *   model       the default model, used when none is chosen
+ *   fallbacks   models to try when the chosen one is overloaded or retired
  *   suggested   a short starting list for the Settings dropdown
  *
  * `suggested` is only a starting point. Settings can also pull the live list
@@ -19,6 +20,7 @@ export const PROVIDER_CATALOG = {
     label: 'OpenAI',
     baseUrl: 'https://api.openai.com/v1',
     model: 'gpt-4o-mini',
+    fallbacks: ['gpt-4.1-mini', 'gpt-4o'],
     keyHelp: 'platform.openai.com → API keys',
     suggested: [
       { id: 'gpt-4o-mini', note: 'Fast and cheap — recommended' },
@@ -36,6 +38,7 @@ export const PROVIDER_CATALOG = {
     // which reads to a user as the app being broken. 2.5-flash replies in
     // about a second and is not thinking-by-default like `flash-latest`.
     model: 'gemini-2.5-flash',
+    fallbacks: ['gemini-flash-latest', 'gemini-pro-latest'],
     keyHelp: 'aistudio.google.com → Get API key',
     suggested: [
       { id: 'gemini-2.5-flash', note: 'Fast and steady — recommended' },
