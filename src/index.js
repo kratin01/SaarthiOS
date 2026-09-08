@@ -31,6 +31,16 @@ async function main() {
         `Timezone ${Intl.DateTimeFormat().resolvedOptions().timeZone} — today is ${toDateKey(new Date())}. Set TZ in .env if that is not your date.`
       );
 
+      // Otherwise the only symptom of a missing allowlist is a nav item that
+      // never appears, which looks like the feature failed rather than a
+      // setting being absent.
+      logger.info(
+        env.adminEmails.length
+          ? `Admin dashboard enabled for: ${env.adminEmails.join(', ')}`
+          : 'Admin dashboard off. Set ADMIN_EMAILS in .env to enable it.'
+      );
+      logger.info(`Lists return ${env.PAGE_SIZE} rows per page`);
+
       if (env.BIND_HOST === '0.0.0.0') {
         logger.warn(
           `Listening on all interfaces. Behind nginx, set BIND_HOST=127.0.0.1 so port ${env.PORT} cannot be reached directly.`
