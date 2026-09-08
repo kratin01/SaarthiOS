@@ -6,7 +6,9 @@
  * the rows is what lets the UI say "showing 50 of 143" instead of quietly
  * lying.
  */
-export const DEFAULT_LIMIT = 50;
+import { env } from '../config/env.js';
+
+export const DEFAULT_LIMIT = env.PAGE_SIZE;
 export const MAX_LIMIT = 100;
 
 /** Query strings arrive as text and can hold anything. */

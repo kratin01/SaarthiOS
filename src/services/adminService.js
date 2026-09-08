@@ -8,6 +8,7 @@
  */
 import { User, Expense, Meal, Investment, AgentRun, CustomAgent } from '../models/index.js';
 import { addDays, startOfDay } from '../utils/dates.js';
+import { pageInfo } from '../utils/paging.js';
 
 /** Per-user totals and the last time anything was written, in one pass each. */
 const countAndLatest = (model) =>
@@ -17,7 +18,7 @@ const countAndLatest = (model) =>
 
 const laterOf = (a, b) => (!a ? b : !b ? a : a > b ? a : b);
 
-export async function getAdminOverview({ days = 30 } = {}) {
+export async function getAdminOverview({ days = 30, limit, offset = 0 } = {}) {
   const since = startOfDay(addDays(new Date(), -(days - 1)));
 
   const [users, expenses, meals, investments, runs, agents] = await Promise.all([
@@ -86,7 +87,15 @@ export async function getAdminOverview({ days = 30 } = {}) {
     generatedAt: new Date(),
     windowDays: days,
     users: activity,
-    people,
+    // Every account is loaded because the summary above counts across all of
+    // them; only the table is paged.
+    people: people.slice(offset, offset + limit),
+    page: pageInfo({
+      limit,
+      offset,
+      total: people.length,
+      count: people.slice(offset, offset + limit).length
+    }),
     totals: {
       expenses: sumOf(expenses),
       meals: sumOf(meals),

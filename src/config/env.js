@@ -59,6 +59,9 @@ const schema = z.object({
    */
   ADMIN_EMAILS: z.string().default(''),
 
+  /** How many rows a list returns per page, everywhere including admin. */
+  PAGE_SIZE: z.coerce.number().int().min(1).max(100).default(7),
+
   /**
    * Operator notices. Set any of these to a sentence and it appears in the app
    * straight away — no redeploy, no code change. Blank means nothing is shown.
