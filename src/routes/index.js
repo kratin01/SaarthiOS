@@ -5,6 +5,7 @@ import aiRoutes from './ai.routes.js';
 import chatRoutes from './chat.routes.js';
 import importRoutes from './import.routes.js';
 import dashboardRoutes from './dashboard.routes.js';
+import adminRoutes from './admin.routes.js';
 import expenseRoutes from './expense.routes.js';
 import healthRoutes from './health.routes.js';
 import investmentRoutes from './investment.routes.js';
@@ -59,5 +60,6 @@ router.use('/expenses', expenseRoutes);
 router.use('/meals', healthRoutes);
 router.use('/investments', investmentRoutes);
 router.use('/agents', customAgentRoutes);
+router.use('/admin', adminRoutes);
 
 export default router;

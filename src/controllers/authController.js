@@ -3,10 +3,13 @@ import { z } from 'zod';
 import { User } from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { signToken } from '../middleware/auth.js';
+import { signToken, isAdmin } from '../middleware/auth.js';
 import { googleStatus, verifyGoogleToken } from '../services/googleAuthService.js';
 import { computeBodyTargets } from '../services/bodyProfileService.js';
 import { BODY_GOALS } from '../config/constants.js';
+
+/** Admin is worked out from the environment allowlist, never stored on the row. */
+const publicUser = (user) => ({ ...user.toJSON(), isAdmin: isAdmin(user) });
 
 export const registerSchema = z.object({
   name: z.string().trim().min(2, 'Name is too short').max(80),
@@ -41,8 +44,7 @@ export const googleSchema = z.object({
   credential: z.string().min(1, 'Missing Google credential').max(4000)
 });
 
-export const register = asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body;
+export const register = asyncHandler(async (req, res) => {  const { name, email, password } = req.body;
 
   const existing = await User.findOne({ email }).select('+passwordHash');
   if (existing) {
@@ -59,7 +61,7 @@ export const register = asyncHandler(async (req, res) => {
     passwordHash: await User.hashPassword(password)
   });
 
-  res.status(201).json({ token: signToken(user), user: user.toJSON() });
+  res.status(201).json({ token: signToken(user), user: publicUser(user) });
 });
 
 export const login = asyncHandler(async (req, res) => {
@@ -75,7 +77,7 @@ export const login = asyncHandler(async (req, res) => {
     throw ApiError.unauthorized('Email or password is incorrect');
   }
 
-  res.json({ token: signToken(user), user: user.toJSON() });
+  res.json({ token: signToken(user), user: publicUser(user) });
 });
 
 /**
@@ -112,7 +114,7 @@ export const googleSignIn = asyncHandler(async (req, res) => {
     await user.save();
   }
 
-  res.json({ token: signToken(user), user: user.toJSON() });
+  res.json({ token: signToken(user), user: publicUser(user) });
 });
 
 /** Public: tells the sign-in page whether to show the Google button. */
@@ -121,13 +123,13 @@ export const providers = asyncHandler(async (_req, res) => {
 });
 
 export const me = asyncHandler(async (req, res) => {
-  res.json({ user: req.user.toJSON() });
+  res.json({ user: publicUser(req.user) });
 });
 
 export const updateProfile = asyncHandler(async (req, res) => {
   Object.assign(req.user, req.body);
   await req.user.save();
-  res.json({ user: req.user.toJSON() });
+  res.json({ user: publicUser(req.user) });
 });
 
 /**

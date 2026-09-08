@@ -50,6 +50,16 @@ const schema = z.object({
   BIND_HOST: z.string().default('0.0.0.0'),
 
   /**
+   * Who may open the admin dashboard, comma separated.
+   *
+   * Deliberately not a field on the user: a flag in the database is only ever
+   * one loosened validation schema away from being self-grantable, whereas
+   * nothing an HTTP request can do reaches this file. Blank means nobody, so
+   * the dashboard simply does not exist until it is set.
+   */
+  ADMIN_EMAILS: z.string().default(''),
+
+  /**
    * Operator notices. Set any of these to a sentence and it appears in the app
    * straight away — no redeploy, no code change. Blank means nothing is shown.
    * Use them when something is known to be broken so users read your words
@@ -93,5 +103,9 @@ export const env = Object.freeze({
   /** CLIENT_ORIGIN may hold a comma separated list. */
   allowedOrigins: raw.CLIENT_ORIGIN.split(',')
     .map((o) => o.trim())
+    .filter(Boolean),
+  /** Lowercased, because email comparison is case-insensitive in practice. */
+  adminEmails: raw.ADMIN_EMAILS.split(',')
+    .map((e) => e.trim().toLowerCase())
     .filter(Boolean)
 });

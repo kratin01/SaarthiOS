@@ -27,3 +27,13 @@ export const requireAuth = asyncHandler(async (req, _res, next) => {
 
 export const signToken = (user) =>
   jwt.sign({ sub: String(user._id) }, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN });
+
+/** Checked against the verified session, never against anything the client sent. */
+export const isAdmin = (user) =>
+  Boolean(user?.email) && env.adminEmails.includes(user.email.toLowerCase());
+
+export const requireAdmin = asyncHandler(async (req, _res, next) => {
+  // Not found rather than forbidden: a 403 confirms the dashboard is there.
+  if (!isAdmin(req.user)) throw ApiError.notFound('Not found');
+  next();
+});
