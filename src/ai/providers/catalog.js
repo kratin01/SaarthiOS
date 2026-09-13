@@ -70,9 +70,23 @@ export const PROVIDER_CATALOG = {
     kind: 'openai',
     label: 'OpenRouter',
     baseUrl: 'https://openrouter.ai/api/v1',
-    model: 'meta-llama/llama-3.3-70b-instruct',
+    model: 'deepseek/deepseek-chat',
+    // OpenRouter routes to many upstreams, so a limit or an outage usually
+    // belongs to one model rather than the account. Moving to another actually
+    // helps here, unlike a provider with a single shared quota.
+    fallbacks: [
+      'meta-llama/llama-3.3-70b-instruct',
+      'google/gemini-2.0-flash-001',
+      'openai/gpt-4o-mini'
+    ],
+    fallbackOnRateLimit: true,
     keyHelp: 'openrouter.ai → Keys',
-    suggested: [{ id: 'meta-llama/llama-3.3-70b-instruct', note: 'Open weights' }]
+    suggested: [
+      { id: 'deepseek/deepseek-chat', note: 'Cheap and capable — recommended' },
+      { id: 'meta-llama/llama-3.3-70b-instruct', note: 'Open weights' },
+      { id: 'google/gemini-2.0-flash-001', note: 'Fast' },
+      { id: 'openai/gpt-4o-mini', note: 'Reliable fallback' }
+    ]
   },
   together: {
     kind: 'openai',

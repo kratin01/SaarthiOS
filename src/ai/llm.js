@@ -59,8 +59,19 @@ function candidateModels(config) {
   return [...new Set([config?.model, ...(preset?.fallbacks ?? [])].filter(Boolean))];
 }
 
-/** Worth trying a different model for. A bad key or a rate limit is not. */
-const isModelProblem = (error) => error?.providerStatus === 503 || error?.providerStatus === 404;
+/**
+ * Worth trying a different model for.
+ *
+ * A missing or overloaded model always is. A rate limit only is where the
+ * provider meters per model, which is true of a router sitting in front of many
+ * upstreams and false of one account-wide quota, where every model would be
+ * just as limited.
+ */
+function isModelProblem(error, config) {
+  const status = error?.providerStatus;
+  if (status === 503 || status === 404) return true;
+  return status === 429 && Boolean(PROVIDER_CATALOG[config?.name]?.fallbackOnRateLimit);
+}
 
 /**
  * Complete the request, moving to another model if this one cannot serve it.
@@ -85,7 +96,7 @@ async function completeWithFallback(config, request) {
         return { text, model };
       } catch (error) {
         lastError = error;
-        if (!isModelProblem(error)) throw error;
+        if (!isModelProblem(error, config)) throw error;
 
         const canRetrySameModel = error.providerStatus === 503 && attempt === 1;
         if (!canRetrySameModel) break;

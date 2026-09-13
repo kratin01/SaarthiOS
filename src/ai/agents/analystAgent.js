@@ -30,7 +30,9 @@ export const analystAgent = {
       // The history matters: "and on travel?" only makes sense after the
       // question before it.
       user: `${buildConversationContext(history)}Question: ${message}\n\nData:\n${JSON.stringify(facts, null, 2)}`,
-      maxTokens: 500
+      // A table of rows needs far more room than a two sentence summary, and a
+      // reply cut off mid-table is worse than no table.
+      maxTokens: 1500
     });
 
     return { reply, facts };
