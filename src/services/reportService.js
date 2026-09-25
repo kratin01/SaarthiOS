@@ -9,7 +9,6 @@ import { Expense } from '../models/Expense.js';
 import { Meal } from '../models/Meal.js';
 import { ApiError } from '../utils/ApiError.js';
 import { currencySymbol } from '../config/constants.js';
-import { rangeSchema } from '../ai/schemas.js';
 import { dayBuckets, isMonthRange, resolveRange, toDateKey, toMonthKey } from '../utils/dates.js';
 import * as xl from '../utils/excel.js';
 
@@ -21,13 +20,6 @@ const MAX_ROWS = 10_000;
 
 /** Past a few months a day-by-day sheet is noise, so it switches to months. */
 const MAX_DAILY_ROWS = 120;
-
-/** Reports read the range straight off the query string, so it is checked here. */
-export function readRange(value) {
-  const parsed = rangeSchema.safeParse(value ?? 'month');
-  if (!parsed.success) throw ApiError.badRequest('That is not a period I can report on');
-  return parsed.data;
-}
 
 export async function buildExpenseReport(user, range) {
   const rows = await fetchRows(Expense, user._id, range);

@@ -6,17 +6,15 @@
  * rejected — the AI can never invent a category or a negative amount.
  */
 import { z } from 'zod';
-import { MEAL_TYPES, INVESTMENT_TYPES, BODY_GOALS } from '../config/constants.js';
+import { MEAL_TYPES, INVESTMENT_TYPES, BODY_GOALS, RANGES } from '../config/constants.js';
 import { isMonthRange } from '../utils/dates.js';
 
 const money = z.coerce.number().finite().min(0).max(100_000_000);
 
-export const PRESET_RANGES = ['today', 'week', 'month', 'last_month', 'year', 'all'];
-
 /** A preset window name, or a month key such as `2026-08`. */
 export const rangeSchema = z
   .string()
-  .refine((value) => PRESET_RANGES.includes(value) || isMonthRange(value), {
+  .refine((value) => RANGES.includes(value) || isMonthRange(value), {
     message: 'Unknown range'
   });
 

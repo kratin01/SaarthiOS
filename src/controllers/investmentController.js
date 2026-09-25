@@ -2,13 +2,15 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { investmentInputSchema, investmentUpdateSchema } from '../ai/schemas.js';
 import { readPaging, pageInfo } from '../utils/paging.js';
+import { readRange } from '../utils/range.js';
 import * as investmentService from '../services/investmentService.js';
 
 export const createSchema = investmentInputSchema;
 export const updateSchema = investmentUpdateSchema;
 
 export const list = asyncHandler(async (req, res) => {
-  const { range = 'year', type } = req.query;
+  const { type } = req.query;
+  const range = readRange(req.query.range, 'year');
   const { limit, offset } = readPaging(req.query);
 
   const [result, summary] = await Promise.all([

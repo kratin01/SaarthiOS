@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { customEntryInputSchema, customEntryUpdateSchema } from '../ai/schemas.js';
 import { readPaging, pageInfo } from '../utils/paging.js';
+import { readRange } from '../utils/range.js';
 import { CUSTOM_FIELD_TYPES, STORABLE_AGENT_ICONS } from '../config/constants.js';
 import * as customAgentService from '../services/customAgentService.js';
 
@@ -48,7 +49,7 @@ export const remove = asyncHandler(async (req, res) => {
 
 /** The agent's own page: its definition, its rows and its totals. */
 export const detail = asyncHandler(async (req, res) => {
-  const { range = 'month' } = req.query;
+  const range = readRange(req.query.range);
   const { limit, offset } = readPaging(req.query);
   const agent = await customAgentService.getAgentBySlug(req.user._id, req.params.slug);
 

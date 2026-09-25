@@ -19,6 +19,12 @@ export const EXPENSE_CATEGORIES = [
 
 export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'];
 
+/**
+ * Windows every dashboard and agent understands. A single calendar month, written
+ * as `2026-08`, is also accepted anywhere one of these is — see `utils/dates.js`.
+ */
+export const RANGES = ['today', 'week', 'month', 'last_month', 'year', 'all'];
+
 /** Currencies the settings screen offers. `symbol` is what reports print. */
 export const CURRENCIES = [
   { code: 'INR', symbol: '₹', label: 'Indian Rupee' },
