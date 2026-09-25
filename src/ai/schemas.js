@@ -7,8 +7,18 @@
  */
 import { z } from 'zod';
 import { MEAL_TYPES, INVESTMENT_TYPES, BODY_GOALS } from '../config/constants.js';
+import { isMonthRange } from '../utils/dates.js';
 
 const money = z.coerce.number().finite().min(0).max(100_000_000);
+
+export const PRESET_RANGES = ['today', 'week', 'month', 'last_month', 'year', 'all'];
+
+/** A preset window name, or a month key such as `2026-08`. */
+export const rangeSchema = z
+  .string()
+  .refine((value) => PRESET_RANGES.includes(value) || isMonthRange(value), {
+    message: 'Unknown range'
+  });
 
 /**
  * Models write `null` where they mean "nothing here", and Zod's `.default()`
@@ -123,7 +133,7 @@ export const questionSchema = z.object({
     .array(z.string().max(40))
     .nullish()
     .transform((v) => (v?.length ? [...new Set(v)] : ['expense'])),
-  range: z.enum(['today', 'week', 'month', 'last_month', 'year', 'all']).catch('month')
+  range: rangeSchema.catch('month')
 });
 
 /**

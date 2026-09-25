@@ -7,6 +7,7 @@ const router = Router();
 
 router.use(requireAuth);
 router.get('/', meals.list);
+router.get('/report', meals.report);
 router.post('/', validateBody(meals.createSchema), meals.create);
 router.patch('/:id', validateBody(meals.updateSchema), meals.update);
 router.delete('/:id', meals.remove);

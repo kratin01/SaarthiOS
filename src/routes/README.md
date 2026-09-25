@@ -79,16 +79,19 @@ between queries, and `skip` shows the same row on two pages while hiding another
 | `POST`   | `/api/import/confirm`         | Save the rows the user ticked                 |
 | `GET`    | `/api/dashboard`              | Everything the home screen needs. `?period=today\|month` |
 | `GET`    | `/api/expenses`               | List + summary. `?range=month&category=food`  |
+| `GET`    | `/api/expenses/report`        | The period as an `.xlsx` download. `?range=2026-08` |
 | `POST`   | `/api/expenses`               | Add one by hand                               |
 | `DELETE` | `/api/expenses/:id`           | Remove one                                    |
 | `GET`    | `/api/meals`                  | List + nutrition summary. `?range=week`       |
+| `GET`    | `/api/meals/report`           | The period as an `.xlsx` download. `?range=2026-08` |
 | `POST`   | `/api/meals`                  | Log one by hand                               |
 | `DELETE` | `/api/meals/:id`              | Remove one                                    |
 | `GET`    | `/api/investments`            | List + summary. `?range=year&type=sip`        |
 | `POST`   | `/api/investments`            | Add one by hand                               |
 | `DELETE` | `/api/investments/:id`        | Remove one                                    |
 
-`range` accepts `today`, `week`, `month`, `last_month`, `year`, `all`.
+`range` accepts `today`, `week`, `month`, `last_month`, `year`, `all`, or one
+calendar month written as `YYYY-MM` (for example `2026-08`).
 
 ---
 

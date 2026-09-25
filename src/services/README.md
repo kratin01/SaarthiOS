@@ -87,8 +87,8 @@ is configured. They reword themselves to match the selected period.
 ## Two details worth knowing
 
 **Date ranges.** Anything taking a `range` accepts `today`, `week`, `month`, `last_month`, `year`
-or `all`. `utils/dates.js` turns that word into a real `from`/`to` window, so the API and the AI
-agree on what "this month" means.
+or `all`, or one calendar month written as `YYYY-MM` such as `2026-08`. `utils/dates.js` turns that
+into a real `from`/`to` window, so the API and the AI agree on what "this month" means.
 
 **Object ids.** Mongoose casts ids in `find()` but *not* inside an aggregation `$match`. Every
 aggregation here passes the user id through `toObjectId()`. Forgetting this returns an empty result

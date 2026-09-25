@@ -2,7 +2,9 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { expenseInputSchema, expenseUpdateSchema } from '../ai/schemas.js';
 import { readPaging, pageInfo } from '../utils/paging.js';
+import { sendWorkbook } from '../utils/excel.js';
 import * as expenseService from '../services/expenseService.js';
+import * as reportService from '../services/reportService.js';
 
 export const createSchema = expenseInputSchema;
 export const updateSchema = expenseUpdateSchema;
@@ -26,6 +28,13 @@ export const list = asyncHandler(async (req, res) => {
 export const create = asyncHandler(async (req, res) => {
   const expense = await expenseService.createExpense(req.user._id, req.body);
   res.status(201).json({ expense });
+});
+
+/** The same window the screen is showing, as a spreadsheet. */
+export const report = asyncHandler(async (req, res) => {
+  const range = reportService.readRange(req.query.range);
+  const { filename, buffer } = await reportService.buildExpenseReport(req.user, range);
+  sendWorkbook(res, filename, buffer);
 });
 
 export const remove = asyncHandler(async (req, res) => {

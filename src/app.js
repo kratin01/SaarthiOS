@@ -24,7 +24,10 @@ export function createApp() {
         if (!origin || env.allowedOrigins.includes(origin)) return callback(null, true);
         callback(new Error('Origin not allowed by CORS'));
       },
-      credentials: true
+      credentials: true,
+      // Without this the browser hides the header and report downloads lose
+      // their filename when the API is on another origin.
+      exposedHeaders: ['Content-Disposition']
     })
   );
   app.use(compression());

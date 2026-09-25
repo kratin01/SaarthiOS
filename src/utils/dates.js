@@ -47,11 +47,43 @@ export const toMonthKey = (d) => {
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`;
 };
 
+/** A specific calendar month, e.g. `2026-08`, used as a range of its own. */
+const MONTH_KEY = /^(\d{4})-(0[1-9]|1[0-2])$/;
+
+/** `2026-08` → `{ year, month }`, or null when it is not a month key. */
+export function parseMonthKey(value) {
+  const match = MONTH_KEY.exec(String(value ?? '').trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  // Anything outside this is a typo or a probe, not a month someone logged in.
+  if (year < 2000 || year > 2100) return null;
+  return { year, month: Number(match[2]) };
+}
+
+export const isMonthRange = (value) => parseMonthKey(value) !== null;
+
+/** `August 2026` — the human name for a month key. */
+export const monthKeyLabel = (value) => {
+  const parsed = parseMonthKey(value);
+  if (!parsed) return '';
+  return new Date(parsed.year, parsed.month - 1, 1).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric'
+  });
+};
+
 /**
  * Turns a friendly range name into a `{ from, to, label }` window.
  * Used by both the REST endpoints (?range=month) and the AI question flow.
+ * `range` may also be a month key like `2026-08` for one specific month.
  */
 export function resolveRange(range = 'month', now = new Date()) {
+  const month = parseMonthKey(range);
+  if (month) {
+    const first = new Date(month.year, month.month - 1, 1);
+    return { from: first, to: endOfMonth(first), label: monthKeyLabel(range) };
+  }
+
   switch (range) {
     case 'today':
       return { from: startOfDay(now), to: endOfDay(now), label: 'today' };

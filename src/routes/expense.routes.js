@@ -7,6 +7,7 @@ const router = Router();
 
 router.use(requireAuth);
 router.get('/', expenses.list);
+router.get('/report', expenses.report);
 router.post('/', validateBody(expenses.createSchema), expenses.create);
 router.patch('/:id', validateBody(expenses.updateSchema), expenses.update);
 router.delete('/:id', expenses.remove);

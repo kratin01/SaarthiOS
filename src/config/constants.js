@@ -19,6 +19,20 @@ export const EXPENSE_CATEGORIES = [
 
 export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'];
 
+/** Currencies the settings screen offers. `symbol` is what reports print. */
+export const CURRENCIES = [
+  { code: 'INR', symbol: '₹', label: 'Indian Rupee' },
+  { code: 'USD', symbol: '$', label: 'US Dollar' },
+  { code: 'EUR', symbol: '€', label: 'Euro' },
+  { code: 'GBP', symbol: '£', label: 'British Pound' },
+  { code: 'AED', symbol: 'د.إ', label: 'UAE Dirham' },
+  { code: 'RUB', symbol: '₽', label: 'Russian Ruble' }
+];
+
+/** Falls back to the code itself so an unknown currency still reads sensibly. */
+export const currencySymbol = (code) =>
+  CURRENCIES.find((c) => c.code === code)?.symbol ?? String(code ?? '').trim();
+
 /** Types where a unit count is meaningful, so the form asks for quantity. */
 export const QUANTITY_TYPES = ['stocks'];
 

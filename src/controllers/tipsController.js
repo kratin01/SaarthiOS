@@ -2,11 +2,12 @@
 import { z } from 'zod';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { generateTips } from '../ai/tips.js';
+import { rangeSchema } from '../ai/schemas.js';
 
 export const tipsSchema = z.object({
   /** A built-in domain or one of the user's own agent slugs. */
   domain: z.string().min(1).max(40),
-  range: z.enum(['today', 'week', 'month', 'last_month', 'year', 'all']).default('month')
+  range: rangeSchema.default('month')
 });
 
 export const tips = asyncHandler(async (req, res) => {

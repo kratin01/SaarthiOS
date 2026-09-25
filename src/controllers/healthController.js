@@ -2,7 +2,9 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { mealInputSchema, mealUpdateSchema } from '../ai/schemas.js';
 import { readPaging, pageInfo } from '../utils/paging.js';
+import { sendWorkbook } from '../utils/excel.js';
 import * as healthService from '../services/healthService.js';
+import * as reportService from '../services/reportService.js';
 
 export const createSchema = mealInputSchema;
 export const updateSchema = mealUpdateSchema;
@@ -26,6 +28,13 @@ export const list = asyncHandler(async (req, res) => {
 export const create = asyncHandler(async (req, res) => {
   const meal = await healthService.createMeal(req.user._id, req.body);
   res.status(201).json({ meal });
+});
+
+/** The same window the screen is showing, as a spreadsheet. */
+export const report = asyncHandler(async (req, res) => {
+  const range = reportService.readRange(req.query.range);
+  const { filename, buffer } = await reportService.buildHealthReport(req.user, range);
+  sendWorkbook(res, filename, buffer);
 });
 
 export const remove = asyncHandler(async (req, res) => {
