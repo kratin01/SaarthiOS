@@ -19,6 +19,7 @@ import {
   expenseAgent,
   healthAgent,
   investmentAgent,
+  subscriptionAgent,
   profileAgent,
   analystAgent,
   buildCustomAgent
@@ -79,7 +80,7 @@ export async function handleMessage({ user, message, conversation }) {
 
     const context = { userId: user._id, agentRunId: run._id };
     const agentsUsed = [];
-    const created = { expenses: 0, meals: 0, investments: 0, custom: 0 };
+    const created = { expenses: 0, meals: 0, investments: 0, subscriptions: 0, custom: 0 };
     let reply = '';
 
     if (plan.intent === 'clarify' && plan.clarify) {
@@ -126,6 +127,14 @@ export async function handleMessage({ user, message, conversation }) {
             .then((r) => ({ agent: investmentAgent, result: r }))
         );
       }
+      if (plan.subscriptions.length) {
+        agentsUsed.push('subscription');
+        jobs.push(
+          subscriptionAgent
+            .run({ ...context, drafts: plan.subscriptions })
+            .then((r) => ({ agent: subscriptionAgent, result: r }))
+        );
+      }
 
       if (Object.values(plan.profile ?? {}).some((v) => v !== undefined)) {
         agentsUsed.push('profile');
@@ -155,6 +164,7 @@ export async function handleMessage({ user, message, conversation }) {
         if (agent.name === 'expense') created.expenses = result.created.length;
         if (agent.name === 'health') created.meals = result.created.length;
         if (agent.name === 'investment') created.investments = result.created.length;
+        if (agent.name === 'subscription') created.subscriptions = result.created.length;
         if (agent.name === 'custom') created.custom += result.created.length;
       }
 
@@ -241,6 +251,13 @@ function composeSaveReply(outcomes, currency) {
     if (agent.name === 'investment') {
       parts.push(`Investment of ${money(result.total, currency)} recorded.`);
     }
+    if (agent.name === 'subscription') {
+      // The monthly figure, not the billed figure: "2400 a year" is easy to
+      // wave away, "200 a month" is the one that registers.
+      parts.push(
+        `Now tracking ${result.names.join(', ')} — ${money(result.total, currency)} a month.`
+      );
+    }
     if (agent.name === 'custom') {
       // Read the numbers back so a wrong one is obvious immediately, the same
       // reason the health agent repeats the portion it assumed.
@@ -285,7 +302,8 @@ function groupBySlug(drafts) {
  */
 function resolveDomains(domains, customBySlug) {
   const allowed = domains.filter(
-    (d) => ['expense', 'health', 'investment'].includes(d) || customBySlug.has(d)
+    (d) =>
+      ['expense', 'health', 'investment', 'subscription'].includes(d) || customBySlug.has(d)
   );
   return allowed.length ? allowed : ['expense'];
 }

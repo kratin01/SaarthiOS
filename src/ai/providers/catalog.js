@@ -7,6 +7,7 @@
  *   model       the default model, used when none is chosen
  *   fallbacks   models to try when the chosen one is overloaded or retired
  *   suggested   a short starting list for the Settings dropdown
+ *   audio       whether it can turn a voice note into text, and with what
  *
  * `suggested` is only a starting point. Settings can also pull the live list
  * from the provider using the user's own key, which is what stops this file
@@ -22,6 +23,7 @@ export const PROVIDER_CATALOG = {
     model: 'gpt-4o-mini',
     fallbacks: ['gpt-4.1-mini', 'gpt-4o'],
     keyHelp: 'platform.openai.com → API keys',
+    audio: { model: 'whisper-1' },
     suggested: [
       { id: 'gpt-4o-mini', note: 'Fast and cheap — recommended' },
       { id: 'gpt-4o', note: 'More capable' },
@@ -40,6 +42,8 @@ export const PROVIDER_CATALOG = {
     model: 'gemini-2.5-flash',
     fallbacks: ['gemini-flash-latest', 'gemini-pro-latest'],
     keyHelp: 'aistudio.google.com → Get API key',
+    /** Gemini reads audio on the normal endpoint, so there is no separate model. */
+    audio: {},
     suggested: [
       { id: 'gemini-2.5-flash', note: 'Fast and steady — recommended' },
       { id: 'gemini-flash-latest', note: 'Newest flash, slower and busier' },
@@ -64,6 +68,7 @@ export const PROVIDER_CATALOG = {
     baseUrl: 'https://api.groq.com/openai/v1',
     model: 'llama-3.3-70b-versatile',
     keyHelp: 'console.groq.com → API keys',
+    audio: { model: 'whisper-large-v3' },
     suggested: [{ id: 'llama-3.3-70b-versatile', note: 'Very fast' }]
   },
   openrouter: {

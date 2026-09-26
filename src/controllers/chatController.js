@@ -8,6 +8,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { handleMessage } from '../ai/orchestrator.js';
 import { readPaging, pageInfo } from '../utils/paging.js';
 import { statusForUser } from '../services/aiSettingsService.js';
+import { transcribe as transcribeAudio } from '../services/transcriptionService.js';
 
 export const messageSchema = z.object({
   message: z.string().trim().min(1, 'Type something first').max(2000),
@@ -23,6 +24,15 @@ async function loadConversation(userId, id) {
   if (!conversation) throw ApiError.notFound('Conversation not found');
   return conversation;
 }
+
+/**
+ * Voice note in, text out. Nothing is saved and nothing is acted on — the text
+ * lands in the message box so it can be read and corrected before sending.
+ */
+export const transcribe = asyncHandler(async (req, res) => {
+  const text = await transcribeAudio(req.user, req.file);
+  res.json({ text });
+});
 
 export const sendMessage = asyncHandler(async (req, res) => {
   const conversation = await loadConversation(req.user._id, req.body.conversationId);

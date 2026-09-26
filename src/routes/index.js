@@ -9,11 +9,18 @@ import adminRoutes from './admin.routes.js';
 import expenseRoutes from './expense.routes.js';
 import healthRoutes from './health.routes.js';
 import investmentRoutes from './investment.routes.js';
+import subscriptionRoutes from './subscription.routes.js';
 import customAgentRoutes from './customAgent.routes.js';
 import { buildStatus } from '../services/statusService.js';
 import { databaseState } from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
-import { EXPENSE_CATEGORIES, MEAL_TYPES, INVESTMENT_TYPES } from '../config/constants.js';
+import {
+  EXPENSE_CATEGORIES,
+  MEAL_TYPES,
+  INVESTMENT_TYPES,
+  BILLING_CYCLES,
+  SUBSCRIPTION_CATEGORIES
+} from '../config/constants.js';
 
 const router = Router();
 
@@ -47,7 +54,9 @@ router.get('/meta', (_req, res) =>
   res.json({
     expenseCategories: EXPENSE_CATEGORIES,
     mealTypes: MEAL_TYPES,
-    investmentTypes: INVESTMENT_TYPES
+    investmentTypes: INVESTMENT_TYPES,
+    billingCycles: BILLING_CYCLES,
+    subscriptionCategories: SUBSCRIPTION_CATEGORIES
   })
 );
 
@@ -59,6 +68,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/expenses', expenseRoutes);
 router.use('/meals', healthRoutes);
 router.use('/investments', investmentRoutes);
+router.use('/subscriptions', subscriptionRoutes);
 router.use('/agents', customAgentRoutes);
 router.use('/admin', adminRoutes);
 

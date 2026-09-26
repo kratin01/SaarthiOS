@@ -43,7 +43,13 @@ export function resolveProviderConfig({ provider, apiKey = '', model = '', baseU
     baseUrl: String(baseUrl || preset.baseUrl).trim(),
     model: String(model || preset.model).trim(),
     apiKey: String(apiKey ?? '').trim(),
-    keyOptional: Boolean(preset.keyOptional)
+    keyOptional: Boolean(preset.keyOptional),
+    /**
+     * Only some hosts can hear. The OpenAI adapter also serves OpenRouter and
+     * Ollama, which have no transcription endpoint at all, so this cannot be a
+     * property of the adapter.
+     */
+    audio: preset.audio ?? null
   };
 
   if (!resolved.apiKey && !preset.keyOptional) {
@@ -74,6 +80,7 @@ export function buildProvider(config, timeoutMs) {
     baseUrl: config.baseUrl,
     model: config.model,
     label: config.label,
+    audio: config.audio ?? null,
     timeoutMs
   });
 }

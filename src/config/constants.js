@@ -19,6 +19,31 @@ export const EXPENSE_CATEGORIES = [
 
 export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'];
 
+/** How often a subscription charges. `months` normalises them to a monthly cost. */
+export const BILLING_CYCLES = ['weekly', 'monthly', 'quarterly', 'yearly'];
+
+/** Weeks are not months, so the weekly figure is the average over a year. */
+export const CYCLE_MONTHS = { weekly: 52 / 12, monthly: 1, quarterly: 3, yearly: 12 };
+
+/**
+ * What a recurring service is for. Deliberately not the expense categories:
+ * nobody has a "groceries subscription", and "streaming" is not an expense.
+ */
+export const SUBSCRIPTION_CATEGORIES = [
+  'streaming',
+  'music',
+  'software',
+  'gaming',
+  'fitness',
+  'news',
+  'cloud',
+  'education',
+  'delivery',
+  'utilities',
+  'insurance',
+  'other'
+];
+
 /**
  * Windows every dashboard and agent understands. A single calendar month, written
  * as `2026-08`, is also accepted anywhere one of these is — see `utils/dates.js`.
@@ -58,7 +83,7 @@ export const INVESTMENT_TYPES = [
 ];
 
 /** `custom` covers every user-defined agent, whatever they named it. */
-export const AGENTS = ['expense', 'health', 'investment', 'profile', 'custom'];
+export const AGENTS = ['expense', 'health', 'investment', 'subscription', 'profile', 'custom'];
 
 /** Where a record came from: a form, extracted from chat, or read off a file. */
 export const SOURCES = ['manual', 'chat', 'import'];
@@ -68,6 +93,7 @@ export const AGENT_META = {
   expense: { label: 'Expense Agent', color: '#C08457' },
   health: { label: 'Health Agent', color: '#6F9E7E' },
   investment: { label: 'Investment Agent', color: '#6B87A8' },
+  subscription: { label: 'Subscription Agent', color: '#A8829E' },
   profile: { label: 'Profile Agent', color: '#7C8CA8' },
   custom: { label: 'Custom Agent', color: '#8E7CC3' }
 };
@@ -110,6 +136,8 @@ export const RESERVED_AGENT_SLUGS = [
   'health',
   'investment',
   'investments',
+  'subscription',
+  'subscriptions',
   'chat',
   'settings',
   'dashboard',

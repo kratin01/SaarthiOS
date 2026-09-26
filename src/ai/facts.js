@@ -8,6 +8,7 @@
 import * as expenseService from '../services/expenseService.js';
 import * as healthService from '../services/healthService.js';
 import * as investmentService from '../services/investmentService.js';
+import * as subscriptionService from '../services/subscriptionService.js';
 import * as customAgentService from '../services/customAgentService.js';
 import { toDateKey } from '../utils/dates.js';
 
@@ -94,6 +95,41 @@ export async function collectFacts({ userId, domains, range, customDefinitions =
     };
   }
 
+  /**
+   * A subscription is not tied to the selected range — it either runs today or
+   * it does not — so this one block answers every period.
+   */
+  if (domains.includes('subscription')) {
+    const [summary, rows] = await Promise.all([
+      subscriptionService.summariseSubscriptions(userId),
+      subscriptionService.listSubscriptions(userId, { limit: ROW_LIMIT })
+    ]);
+    facts.subscriptions = {
+      monthlyCost: round(summary.monthly),
+      yearlyCost: round(summary.yearly),
+      paidToDateAcrossAll: round(summary.paidToDate),
+      active: summary.activeCount,
+      cancelled: summary.cancelledCount,
+      byCategory: summary.byCategory.map((c) => ({ ...c, monthly: round(c.monthly) })),
+      shareOfLastMonthSpending: summary.shareOfSpending,
+      dueInNext30Days: round(summary.dueThisMonth),
+      upcomingCharges: summary.upcoming,
+      items: rows.items.map((s) => ({
+        name: s.name,
+        amount: s.amount,
+        cycle: s.cycle,
+        category: s.category,
+        monthlyEquivalent: round(s.monthly),
+        startedOn: toDateKey(s.startedOn),
+        chargedSoFar: s.charges,
+        paidToDate: round(s.paidToDate),
+        active: s.active
+      })),
+      itemsShown: rows.items.length,
+      itemsTotal: rows.total
+    };
+  }
+
   for (const definition of customDefinitions) {
     if (!domains.includes(definition.slug)) continue;
     const summary = await customAgentService.summariseEntries(userId, definition, range);
@@ -109,3 +145,5 @@ export async function collectFacts({ userId, domains, range, customDefinitions =
 
   return facts;
 }
+
+const round = (n) => Math.round((n ?? 0) * 100) / 100;

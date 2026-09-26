@@ -1,7 +1,13 @@
 /**
  * All prompt text lives here so tuning the AI never means touching logic.
  */
-import { EXPENSE_CATEGORIES, MEAL_TYPES, INVESTMENT_TYPES } from '../config/constants.js';
+import {
+  EXPENSE_CATEGORIES,
+  MEAL_TYPES,
+  INVESTMENT_TYPES,
+  BILLING_CYCLES,
+  SUBSCRIPTION_CATEGORIES
+} from '../config/constants.js';
 
 const list = (values) => values.join(' | ');
 
@@ -70,9 +76,10 @@ Return exactly this shape:
   "intent": "record" | "query" | "clarify" | "chat",
   "expenses": [ { "amount": number, "category": string, "merchant": string, "note": string, "date": "YYYY-MM-DD" } ],
   "meals": [ { "mealType": ${list(MEAL_TYPES)}, "items": [ { "name": string, "quantity": string, "calories": number, "protein": number, "carbs": number, "fat": number } ], "note": string, "date": "YYYY-MM-DD" } ],
-  "investments": [ { "amount": number, "type": ${list(INVESTMENT_TYPES)}, "instrument": string, "quantity": number|null, "symbol": string, "note": string, "date": "YYYY-MM-DD" } ],${customShape}
+  "investments": [ { "amount": number, "type": ${list(INVESTMENT_TYPES)}, "instrument": string, "quantity": number|null, "symbol": string, "note": string, "date": "YYYY-MM-DD" } ],
+  "subscriptions": [ { "name": string, "amount": number, "cycle": ${list(BILLING_CYCLES)}, "category": ${list(SUBSCRIPTION_CATEGORIES)}, "note": string, "startedOn": "YYYY-MM-DD" } ],${customShape}
   "profile": { "monthlyBudget": number, "dailyCalorieGoal": number, "dailyProteinGoal": number, "heightCm": number, "weightKg": number, "bodyGoal": "lean" | "normal" | "bulky" },
-  "question": { "domains": ["expense" | "health" | "investment"${customDomains}], "range": "today" | "week" | "month" | "last_month" | "year" | "all" } | null,
+  "question": { "domains": ["expense" | "health" | "investment" | "subscription"${customDomains}], "range": "today" | "week" | "month" | "last_month" | "year" | "all" } | null,
   "clarify": string,
   "message": string
 }
@@ -143,6 +150,26 @@ Buying shares:
 8b. Leave "quantity" null for every other type. A SIP or a fund contribution is an amount.
 8c. Fill "symbol" only if the user actually said a ticker, such as "TCS.NS" or "AAPL".
     Never guess one from a company name — the server looks it up properly.
+
+Subscriptions — recurring services, recorded once and never again:
+8n. A subscription is something that charges on repeat: Netflix, Spotify, a gym membership,
+    iCloud, a domain renewal, an insurance premium. "I have a Netflix subscription of 100",
+    "Spotify costs me 1200 a year", "paying 500 monthly for the gym" all fill "subscriptions".
+8o. "amount" is what a single charge costs, and "cycle" is how often that charge happens.
+    "1200 a year" is amount 1200 with cycle "yearly" — never divide it into a monthly figure
+    yourself, the server does that.
+8p. Default "cycle" to "monthly" when the user does not say. Most people mean monthly.
+8q. A subscription is NOT an expense. Put it in "subscriptions" only, never in both — otherwise
+    the same money is counted twice. A one-off purchase from the same company is still an
+    expense: "bought a month of Netflix as a gift" is an expense, "I subscribe to Netflix" is a
+    subscription.
+8r. Use "startedOn" only when the user says when it began ("since March", "from last year").
+    Leave it out otherwise and it starts today.
+8s. Pick the closest "category" from the list rather than defaulting to "other" — Netflix, Prime
+    and Hotstar are "streaming", Spotify is "music", ChatGPT and Adobe are "software", iCloud
+    and Drive are "cloud", a gym is "fitness". Only use "other" when nothing fits.
+8t. Cancelling is a query, not a record: "I cancelled Netflix" should be intent "chat" telling
+    them to end it from the Subscriptions page, because nothing here can delete a row.
 
 Food portions — read carefully, this is where accuracy matters most:
 9.  "quantity" is required on every food item and must state a real portion, for example

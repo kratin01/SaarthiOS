@@ -2,6 +2,7 @@ export { User } from './User.js';
 export { Expense } from './Expense.js';
 export { Meal } from './Meal.js';
 export { Investment } from './Investment.js';
+export { Subscription } from './Subscription.js';
 export { AgentRun } from './AgentRun.js';
 export { AiSetting } from './AiSetting.js';
 export { GlobalAiSetting } from './GlobalAiSetting.js';

@@ -16,7 +16,8 @@ import { toDateKey } from '../utils/dates.js';
 const BUILT_IN = {
   expense: 'spending',
   health: 'food and nutrition',
-  investment: 'investment'
+  investment: 'investment',
+  subscription: 'recurring subscriptions'
 };
 
 export async function generateTips({ user, domain, range = 'month' }) {

@@ -6,7 +6,14 @@
  * rejected — the AI can never invent a category or a negative amount.
  */
 import { z } from 'zod';
-import { MEAL_TYPES, INVESTMENT_TYPES, BODY_GOALS, RANGES } from '../config/constants.js';
+import {
+  MEAL_TYPES,
+  INVESTMENT_TYPES,
+  BODY_GOALS,
+  RANGES,
+  BILLING_CYCLES,
+  SUBSCRIPTION_CATEGORIES
+} from '../config/constants.js';
 import { isMonthRange } from '../utils/dates.js';
 
 const money = z.coerce.number().finite().min(0).max(100_000_000);
@@ -108,6 +115,20 @@ export const investmentDraftSchema = z.object({
 });
 
 /**
+ * A recurring service. `startedOn` rather than `date`: this is when the first
+ * charge landed, not when the user happened to mention it, and every
+ * paid-to-date figure counts forward from it.
+ */
+export const subscriptionDraftSchema = z.object({
+  name: z.string().min(1).max(80),
+  amount: money,
+  cycle: z.enum(BILLING_CYCLES).catch('monthly'),
+  category: z.enum(SUBSCRIPTION_CATEGORIES).catch('other'),
+  note: text(300),
+  startedOn: isoDate
+});
+
+/**
  * A row for a user-built agent. `values` stays loose on purpose: the real
  * checking happens in customAgentService.coerceValues, which is the only place
  * that knows which fields this particular agent declared.
@@ -173,6 +194,7 @@ export const planSchema = z.object({
   expenses: list(expenseDraftSchema),
   meals: list(mealDraftSchema),
   investments: list(investmentDraftSchema),
+  subscriptions: list(subscriptionDraftSchema),
   custom: list(customDraftSchema),
   profile: profileDraftSchema.nullish().transform((v) => v ?? {}),
   question: questionSchema.nullish(),
@@ -213,6 +235,19 @@ export const investmentInputSchema = investmentDraftSchema.extend({
     .nullish()
     .transform((v) => v ?? '')
 });
+
+export const subscriptionInputSchema = subscriptionDraftSchema.extend({
+  cycle: z.enum(BILLING_CYCLES).default('monthly'),
+  category: z.enum(SUBSCRIPTION_CATEGORIES).default('other'),
+  startedOn: z.coerce.date().optional(),
+  /** Set to a date to cancel it, null to bring it back. */
+  endedOn: z.coerce
+    .date()
+    .nullish()
+    .transform((v) => v ?? null)
+});
+
+export const subscriptionUpdateSchema = subscriptionInputSchema.partial();
 
 export const customEntryInputSchema = customDraftSchema
   .omit({ agent: true })

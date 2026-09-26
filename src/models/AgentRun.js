@@ -36,6 +36,7 @@ const agentRunSchema = new mongoose.Schema(
       expenses: { type: Number, default: 0 },
       meals: { type: Number, default: 0 },
       investments: { type: Number, default: 0 },
+      subscriptions: { type: Number, default: 0 },
       custom: { type: Number, default: 0 }
     },
     status: { type: String, enum: ['completed', 'failed'], default: 'completed' },

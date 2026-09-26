@@ -7,6 +7,11 @@
 import multer from 'multer';
 import { ApiError } from '../utils/ApiError.js';
 import { ACCEPTED_TYPES, MAX_UPLOAD_BYTES, isAccepted } from '../services/documentService.js';
+import {
+  ACCEPTED_AUDIO_TYPES,
+  MAX_AUDIO_BYTES,
+  isAcceptedAudio
+} from '../services/transcriptionService.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -30,4 +35,25 @@ export const singleDocument = (req, res, next) =>
       );
     }
     next(err.expected ? err : ApiError.badRequest('That file could not be read.'));
+  });
+
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_AUDIO_BYTES, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (isAcceptedAudio(file.mimetype)) return cb(null, true);
+    cb(ApiError.badRequest(`Unsupported audio type. Accepted: ${ACCEPTED_AUDIO_TYPES.join(', ')}.`));
+  }
+});
+
+export const singleAudio = (req, res, next) =>
+  audioUpload.single('audio')(req, res, (err) => {
+    if (!err) {
+      if (!req.file) return next(ApiError.badRequest('No recording was attached.'));
+      return next();
+    }
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return next(ApiError.badRequest('That recording is too long. Keep it under a minute.'));
+    }
+    next(err.expected ? err : ApiError.badRequest('That recording could not be read.'));
   });
