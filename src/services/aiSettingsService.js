@@ -56,18 +56,41 @@ export async function resolveForUser(userId) {
 
   const shared = await GlobalAiSetting.findOne({ scope: 'default' }).lean();
   if (shared?.provider) {
-    const config = resolveProviderConfig({
-      provider: shared.provider,
-      apiKey: decryptSecret(shared.key ?? {}) ?? '',
-      model: shared.model,
-      baseUrl: shared.baseUrl
-    });
+    const config = sharedConfig(shared);
     // Only used when it actually works, so a broken shared default falls
     // through to `.env` rather than taking everyone down with it.
     if (config.ok) return { ...config, source: 'shared' };
   }
 
   return { ...resolveProviderConfig(envConfig()), source: 'env' };
+}
+
+const sharedConfig = (shared) =>
+  resolveProviderConfig({
+    provider: shared.provider,
+    apiKey: decryptSecret(shared.key ?? {}) ?? '',
+    model: shared.model,
+    baseUrl: shared.baseUrl
+  });
+
+/**
+ * The config to turn a voice note into text with.
+ *
+ * Deliberately not whatever `resolveForUser` returns. Transcription is
+ * plumbing rather than a personal preference, and most chat providers cannot
+ * do it at all — choosing OpenRouter to answer questions should not cost you
+ * the microphone. So this walks the same three places and takes the first one
+ * that can actually hear.
+ */
+export async function resolveTranscriber(userId) {
+  const candidates = [await resolveForUser(userId)];
+
+  const shared = await GlobalAiSetting.findOne({ scope: 'default' }).lean();
+  if (shared?.provider) candidates.push({ ...sharedConfig(shared), source: 'shared' });
+
+  candidates.push({ ...resolveProviderConfig(envConfig()), source: 'env' });
+
+  return candidates.find((config) => config.ok && config.audio) ?? candidates[0];
 }
 
 /** Safe to send to the browser: no key, ever. */

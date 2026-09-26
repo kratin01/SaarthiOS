@@ -13,7 +13,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
 import { recordFailure, recordSuccess } from '../utils/serviceHealth.js';
 import { buildProvider } from '../ai/providers/index.js';
-import { resolveForUser } from './aiSettingsService.js';
+import { resolveTranscriber } from './aiSettingsService.js';
 import { env } from '../config/env.js';
 
 /** Long enough for a rambled sentence, short enough to stay well inside limits. */
@@ -66,15 +66,17 @@ const WHISPER_HINT =
 export async function transcribe(user, file) {
   if (!file?.buffer?.length) throw ApiError.badRequest('The recording was empty.');
 
-  const config = await resolveForUser(user._id);
+  const config = await resolveTranscriber(user._id);
   const provider = buildProvider(config, env.LLM_TIMEOUT_MS);
 
   if (!provider) {
     throw ApiError.unavailable('Add an AI provider in Settings to use voice input.');
   }
   if (!provider.supportsAudio) {
+    // Nothing this server can reach is able to listen — saying "switch
+    // provider" would be useless advice for anyone but an admin.
     throw ApiError.unavailable(
-      `${provider.label} cannot transcribe audio. Type the message, or switch to Gemini or OpenAI in Settings.`
+      'Voice input is not available on this server right now. Your words were typed out by the browser instead where it could.'
     );
   }
 
