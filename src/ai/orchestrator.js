@@ -103,11 +103,13 @@ export async function handleMessage({ user, message, conversation }) {
     } else {
       const jobs = [];
 
-      if (plan.expenses.length) {
+      const expenses = withoutSubscriptions(plan.expenses, plan.subscriptions);
+
+      if (expenses.length) {
         agentsUsed.push('expense');
         jobs.push(
           expenseAgent
-            .run({ ...context, drafts: plan.expenses })
+            .run({ ...context, drafts: expenses })
             .then((r) => ({ agent: expenseAgent, result: r }))
         );
       }
@@ -283,6 +285,27 @@ function composeSaveReply(outcomes, currency) {
 
 const money = (amount, currency) =>
   `${currency} ${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(amount)}`;
+
+/**
+ * "My Netflix is 200 a month" sometimes comes back as a subscription AND an
+ * expense for the same 200. Saving both would count the money twice, so the
+ * expense is dropped — the subscription already accounts for every charge.
+ */
+function withoutSubscriptions(expenses, subscriptions) {
+  if (!subscriptions?.length || !expenses?.length) return expenses ?? [];
+
+  const names = subscriptions
+    .map((row) => String(row?.name ?? '').toLowerCase().trim())
+    .filter((name) => name.length > 2);
+
+  if (!names.length) return expenses;
+
+  return expenses.filter((expense) => {
+    const text = `${expense.merchant ?? ''} ${expense.note ?? ''} ${expense.category ?? ''}`
+      .toLowerCase();
+    return !names.some((name) => text.includes(name));
+  });
+}
 
 /** One agent can be given several rows from a single message. */
 function groupBySlug(drafts) {

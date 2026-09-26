@@ -37,17 +37,31 @@ export const isAcceptedAudio = (mimetype) =>
 
 const TIMEOUT_MS = 45_000;
 
-const PROMPT = `You are a transcription engine. Write down exactly what is said in the audio.
+const PROMPT = `You are a transcription engine for a personal expense and food tracker.
+Write down exactly what is said in the audio.
 
 Rules:
 - Output the words only. No preamble, no quotes, no translation, no commentary.
-- The speaker mixes English and Hindi in one sentence. Keep every word in the language it
-  was said in, and write Hindi words in Latin script the way people type them: "do chai
-  liye 40 rupay ke", not Devanagari and not an English translation.
-- Keep numbers as digits.
-- Write proper nouns and brand names the way they are spelt: Swiggy, Zomato, Netflix, Uber.
-- Add normal punctuation, but do not tidy up grammar or reword anything.
-- If the clip has no intelligible speech, output nothing at all.`;
+- The speaker mixes Hindi and English in one sentence. Keep every word in the language it was
+  said in. Write Hindi in Latin script the way Indians type it, never in Devanagari and never
+  translated into English.
+- Spell common Hindi words the standard way: aaj, maine, khaye, liye, rupaye, mera, mere, hai,
+  kal, abhi, aur, ka, ki, ke, wala, bhai, paise, kitna, kharcha, mahine, saal.
+- Use lower case for Hindi words. Only real names keep a capital letter.
+- Numbers stay as digits. "do sau" is 200, "dhai hazaar" is 2500, "teen" before a noun stays
+  as the word "teen" only if that is how it was said.
+- Spell brands the way they are written: Swiggy, Zomato, Netflix, Spotify, Uber, Rapido,
+  Dominos, Blinkit, Zepto, Amazon Prime, Hotstar.
+- Add normal punctuation, but never tidy up grammar, reorder words or reword anything.
+- If the clip has no intelligible speech, output nothing at all.
+
+For example, audio of someone saying they ate three parathas and pay for Netflix should come
+out as: "aaj maine lunch mein teen parathe khaye aur ek katori daal makhni, aur mera Netflix
+200 rupaye monthly hai"`;
+
+/** Biases Whisper towards the same spelling conventions the prompt above sets. */
+const WHISPER_HINT =
+  'aaj maine, khaye, rupaye, mahine ka, kharcha, Swiggy, Zomato, Netflix, Rapido, Uber';
 
 export async function transcribe(user, file) {
   if (!file?.buffer?.length) throw ApiError.badRequest('The recording was empty.');
@@ -73,6 +87,7 @@ export async function transcribe(user, file) {
           data: file.buffer,
           mimeType,
           filename: file.originalname || 'voice-note.webm',
+          hint: WHISPER_HINT,
           timeoutMs: TIMEOUT_MS
         })
       : await provider.complete({

@@ -28,6 +28,15 @@ export function normaliseCategory(raw) {
 
 export const isBuiltInCategory = (category) => EXPENSE_CATEGORIES.includes(category);
 
+/**
+ * Words that mean "this is a recurring service", not "this is a kind of spending".
+ * A planner that reaches for one of these has filed the row in the wrong place,
+ * and letting it through would plant a permanent category on the user's list.
+ */
+const NOT_A_CATEGORY = ['streaming', 'subscription', 'subscriptions', 'recurring', 'membership'];
+
+export const isSubscriptionWord = (category) => NOT_A_CATEGORY.includes(category);
+
 /** Everything this user may file an expense under, built-ins first. */
 export function categoriesFor(user) {
   return [...EXPENSE_CATEGORIES, ...(user?.customCategories ?? [])];

@@ -88,6 +88,26 @@ Rules:
 1. "record" — the user is reporting something that happened. Fill the matching arrays.
    One message can fill several arrays at once. "I spent 800 at a restaurant and had butter
    chicken and naan" is one expense AND one meal.
+1a. Choose the array by what KIND of thing it is, before anything else:
+      money that left once, and will not leave again by itself  -> "expenses"
+      food or drink they consumed                               -> "meals"
+      money put aside to grow                                   -> "investments"
+      a service that charges over and over on its own           -> "subscriptions"
+    Netflix, Spotify, Prime, Hotstar, a gym membership, iCloud, a phone plan, an insurance
+    premium and a domain renewal are ALWAYS "subscriptions". They are never expenses, however
+    the user phrases it, and whether or not they use the word "subscription".
+1b. The giveaway is a repeating word next to a service name: "monthly", "yearly", "a month",
+    "per month", "every year", "mahine ka", "saal ka". That is a subscription, not an expense.
+1c. Worked examples of mixed messages — copy this behaviour exactly:
+      "aaj maine teen parathe khaye aur mera netflix 200 monthly hai"
+        -> meals: [parathe x3].  subscriptions: [Netflix, 200, monthly].  expenses: []
+      "paid 450 for lunch and my spotify is 1189 a year"
+        -> expenses: [450 food].  subscriptions: [Spotify, 1189, yearly].
+      "netflix ka 649 cut gaya aaj"
+        -> subscriptions: [Netflix, 649, monthly].  expenses: []   (a charge landing is not a
+           new expense — the subscription already accounts for it)
+      "bought a 3 month gym pass for 3600"
+        -> subscriptions: [Gym, 3600, quarterly].  expenses: []
 2. "query" — the user is asking about their own logged data. Leave the arrays empty and fill
    "question". "domains" holds only the ids listed above — never a category name. A question
    about food, travel, rent or shopping spend is domain "expense". A question about calories,
@@ -118,6 +138,9 @@ ${categories.join(', ')}
     even if it is a person's name. "I gave 500 to Rahul, put it under rahul" is category "rahul".
     A new name is created automatically, so never refuse and never substitute "other" for a
     category the user actually asked for.
+8e1. Never invent a category for a recurring service. "streaming", "subscription", "netflix" and
+     the like are not expense categories — that whole row belongs in "subscriptions" instead.
+     If you find yourself reaching for one of those words, you are filling the wrong array.
 8f. If the message is a payment with no clear category and nothing on the list obviously fits,
     for example "gave 2000 to this guy", set intent to "clarify" and ask which category to use,
     listing the ones above and offering a new one. For example:
@@ -163,6 +186,8 @@ Subscriptions — recurring services, recorded once and never again:
     the same money is counted twice. A one-off purchase from the same company is still an
     expense: "bought a month of Netflix as a gift" is an expense, "I subscribe to Netflix" is a
     subscription.
+8q1. If the message names a service and a repeating period, "expenses" must stay empty for that
+     part of the sentence. Filing it as an expense with a category like "streaming" is wrong.
 8r. Use "startedOn" only when the user says when it began ("since March", "from last year").
     Leave it out otherwise and it starts today.
 8s. Pick the closest "category" from the list rather than defaulting to "other" — Netflix, Prime

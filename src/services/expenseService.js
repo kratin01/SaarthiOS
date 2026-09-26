@@ -11,6 +11,7 @@ import {
   MAX_CUSTOM_CATEGORIES,
   categoriesFor,
   isBuiltInCategory,
+  isSubscriptionWord,
   normaliseCategory
 } from '../utils/categories.js';
 
@@ -25,6 +26,9 @@ export async function resolveCategory(userId, raw) {
   const category = normaliseCategory(raw);
   if (!category) return 'other';
   if (isBuiltInCategory(category)) return category;
+  // Never let "streaming" or "subscription" become a category someone is stuck
+  // with: those name a recurring service, which lives in its own collection.
+  if (isSubscriptionWord(category)) return 'other';
 
   const user = await User.findById(userId).select('customCategories');
   if (!user) return 'other';

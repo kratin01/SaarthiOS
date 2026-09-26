@@ -54,13 +54,13 @@ export function createOpenAIProvider({ apiKey, baseUrl, model, label, audio, tim
      */
     supportsAudio: Boolean(audio?.model),
 
-    async transcribe({ data, mimeType, filename, language, timeoutMs: callTimeout }) {
+    async transcribe({ data, mimeType, filename, hint, timeoutMs: callTimeout }) {
       const form = new FormData();
       form.append('file', new Blob([data], { type: mimeType }), filename);
       form.append('model', audio.model);
-      // A hint, not a restriction: it still transcribes other languages in the
-      // same clip, which is the whole point for code-switched speech.
-      if (language) form.append('language', language);
+      // Steers spelling without restricting the language, which is what keeps a
+      // half-Hindi half-English sentence intact.
+      if (hint) form.append('prompt', hint);
 
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), callTimeout ?? timeoutMs);
