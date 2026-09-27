@@ -8,7 +8,7 @@
 import { Subscription } from '../models/Subscription.js';
 import { ApiError } from '../utils/ApiError.js';
 import { CYCLE_MONTHS } from '../config/constants.js';
-import { addMonths, startOfDay, startOfMonth, toDateKey } from '../utils/dates.js';
+import { addMonths, endOfMonth, startOfDay, startOfMonth, toDateKey } from '../utils/dates.js';
 import * as expenseService from './expenseService.js';
 
 const DAY = 86_400_000;
@@ -174,6 +174,11 @@ export async function summariseSubscriptions(userId, now = new Date()) {
       inDays: Math.max(0, Math.round((startOfDay(row.nextChargeOn) - startOfDay(now)) / DAY))
     }));
 
+  const monthEnd = endOfMonth(now);
+  const dueBeforeMonthEnd = active.filter(
+    (row) => row.nextChargeOn && row.nextChargeOn <= monthEnd
+  );
+
   return {
     monthly,
     yearly: monthly * 12,
@@ -194,11 +199,16 @@ export async function summariseSubscriptions(userId, now = new Date()) {
       })),
     byCategory,
     upcoming,
-    /** Charges due in the next 30 days, which is the number that stings. */
-    dueThisMonth: sum(
-      active.filter((row) => row.nextChargeOn && row.nextChargeOn - now <= 30 * DAY),
-      (row) => row.amount
-    ),
+    /**
+     * What is still to leave the account before this month ends.
+     *
+     * Deliberately the calendar month rather than a rolling 30 days: a rolling
+     * window reaches into next month, so late in September it would report
+     * October's charges as due now. It also came out identical to the monthly
+     * run-rate for anyone paying monthly, which made two cards say one thing.
+     */
+    dueThisMonth: sum(dueBeforeMonthEnd, (row) => row.amount),
+    dueThisMonthCount: dueBeforeMonthEnd.length,
     shareOfSpending: await shareOfSpending(userId, monthly, now)
   };
 }
