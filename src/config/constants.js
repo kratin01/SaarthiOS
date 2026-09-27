@@ -118,6 +118,7 @@ export const CUSTOM_AGENT_ICONS = [
   'music',
   'brush',
   'paw',
+  'pastry',
   'moon'
 ];
 
