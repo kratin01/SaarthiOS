@@ -196,7 +196,7 @@ export const profileDraftSchema = z.object({
 
 /** What the orchestrator asks the model to produce for every chat message. */
 export const planSchema = z.object({
-  intent: z.enum(['record', 'query', 'chat', 'clarify']).catch('chat'),
+  intent: z.enum(['record', 'query', 'chat', 'clarify', 'out_of_scope']).catch('chat'),
   expenses: list(expenseDraftSchema),
   meals: list(mealDraftSchema),
   investments: list(investmentDraftSchema),

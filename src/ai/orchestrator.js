@@ -15,7 +15,7 @@ import { Conversation } from '../models/Conversation.js';
 import { askJson } from './llm.js';
 import { planSchema } from './schemas.js';
 import { resolveQuestion } from './queryContext.js';
-import { buildPlannerPrompt, buildConversationContext } from './prompts.js';
+import { buildPlannerPrompt, buildConversationContext, TRACKING_SCOPE_REPLY } from './prompts.js';
 import {
   expenseAgent,
   healthAgent,
@@ -89,7 +89,12 @@ export async function handleMessage({ user, message, conversation }) {
     let queryContext = null;
     let reply = '';
 
-    if (plan.intent === 'clarify' && plan.clarify) {
+    if (plan.intent === 'out_of_scope') {
+      reply = TRACKING_SCOPE_REPLY;
+      step('orchestrator', 'Outside tracking scope');
+    } else if (plan.intent === 'chat') {
+      reply = plan.message || TRACKING_SCOPE_REPLY;
+    } else if (plan.intent === 'clarify' && plan.clarify) {
       // Nothing is saved — we hand the question straight back to the user.
       reply = plan.clarify;
       step('orchestrator', 'Needs one detail', plan.clarify);
@@ -187,7 +192,7 @@ export async function handleMessage({ user, message, conversation }) {
 
     run.set({
       reply,
-      intent: plan.intent,
+      intent: plan.intent === 'out_of_scope' ? 'chat' : plan.intent,
       queryContext,
       agentsUsed: [...new Set(agentsUsed)],
       steps,
