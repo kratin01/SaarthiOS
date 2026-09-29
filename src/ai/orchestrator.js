@@ -14,6 +14,7 @@ import { AgentRun } from '../models/AgentRun.js';
 import { Conversation } from '../models/Conversation.js';
 import { askJson } from './llm.js';
 import { planSchema } from './schemas.js';
+import { resolveQuestion } from './queryContext.js';
 import { buildPlannerPrompt, buildConversationContext } from './prompts.js';
 import {
   expenseAgent,
@@ -31,7 +32,7 @@ import { categoriesFor } from '../utils/categories.js';
 import { logger } from '../utils/logger.js';
 
 /** How much of the thread the agents get to see. */
-const CONTEXT_TURNS = 5;
+const CONTEXT_TURNS = 8;
 
 export async function handleMessage({ user, message, conversation }) {
   const startedAt = Date.now();
@@ -45,10 +46,14 @@ export async function handleMessage({ user, message, conversation }) {
   const customAgents = customDefinitions.map(buildCustomAgent);
   const customBySlug = new Map(customAgents.map((agent) => [agent.slug, agent]));
 
-  const previous = await AgentRun.find({ conversation: conversation._id })
-    .sort({ createdAt: -1 })
+  const previous = await AgentRun.find({
+    user: user._id,
+    conversation: conversation._id,
+    status: 'completed'
+  })
+    .sort({ createdAt: -1, _id: -1 })
     .limit(CONTEXT_TURNS)
-    .select('message reply')
+    .select('message reply intent created queryContext createdAt')
     .lean();
   const history = previous.reverse();
 
@@ -81,6 +86,7 @@ export async function handleMessage({ user, message, conversation }) {
     const context = { userId: user._id, agentRunId: run._id };
     const agentsUsed = [];
     const created = { expenses: 0, meals: 0, investments: 0, subscriptions: 0, custom: 0 };
+    let queryContext = null;
     let reply = '';
 
     if (plan.intent === 'clarify' && plan.clarify) {
@@ -88,11 +94,13 @@ export async function handleMessage({ user, message, conversation }) {
       reply = plan.clarify;
       step('orchestrator', 'Needs one detail', plan.clarify);
     } else if (plan.intent === 'query' && plan.question) {
-      const domains = resolveDomains(plan.question.domains, customBySlug);
+      queryContext = resolveQuestion(plan.question, history, message, categoriesFor(user));
+      const domains = resolveDomains(queryContext.domains, customBySlug);
+      queryContext.domains = domains;
       step('orchestrator', `Reading your ${labelDomains(domains, customBySlug)} data`);
       const result = await analystAgent.run({
         user,
-        question: { ...plan.question, domains },
+        question: queryContext,
         message,
         config: aiConfig,
         history,
@@ -180,6 +188,7 @@ export async function handleMessage({ user, message, conversation }) {
     run.set({
       reply,
       intent: plan.intent,
+      queryContext,
       agentsUsed: [...new Set(agentsUsed)],
       steps,
       created,

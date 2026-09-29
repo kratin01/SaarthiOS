@@ -20,6 +20,12 @@ export function createMeals(userId, inputs, options) {
   return Promise.all(inputs.map((input) => createMeal(userId, input, options)));
 }
 
+export function mealsForRun(userId, agentRunId) {
+  return Meal.find({ user: userId, agentRun: toObjectId(agentRunId) })
+    .sort({ date: -1, createdAt: -1, _id: -1 })
+    .lean();
+}
+
 export async function listMeals(userId, { range = 'week', limit = 50, offset = 0 } = {}) {
   const { from, to } = resolveRange(range);
   const filter = { user: userId, date: { $gte: from, $lte: to } };

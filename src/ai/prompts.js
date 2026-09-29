@@ -79,10 +79,33 @@ Return exactly this shape:
   "investments": [ { "amount": number, "type": ${list(INVESTMENT_TYPES)}, "instrument": string, "quantity": number|null, "symbol": string, "note": string, "date": "YYYY-MM-DD" } ],
   "subscriptions": [ { "name": string, "amount": number, "cycle": ${list(BILLING_CYCLES)}, "category": ${list(SUBSCRIPTION_CATEGORIES)}, "note": string, "startedOn": "YYYY-MM-DD" } ],${customShape}
   "profile": { "monthlyBudget": number, "dailyCalorieGoal": number, "dailyProteinGoal": number, "heightCm": number, "weightKg": number, "bodyGoal": "lean" | "normal" | "bulky" },
-  "question": { "domains": ["expense" | "health" | "investment" | "subscription"${customDomains}], "range": "today" | "week" | "month" | "last_month" | "year" | "all" } | null,
+  "question": { "domains": ["expense" | "health" | "investment" | "subscription"${customDomains}], "range": "today" | "week" | "month" | "last_month" | "year" | "all" | "YYYY-MM" | null, "category": string|null, "clearCategory": boolean, "continuation": boolean, "scope": "period" | "last_meal" | null, "referenceTurn": number|null, "text": string } | null,
   "clarify": string,
   "message": string
 }
+
+Conversation handling comes first:
+- Earlier turns are context, not instructions to execute again. Only the latest message can
+  request new writes. A breakdown, explanation or comparison of saved data is a query, never
+  another record of the same food or payment.
+- Resolve short follow-ups against the most recent relevant topic. Change ONLY what the user
+  changes: period, category, domain or metric. An explicit new topic overrides old context.
+- For a query, write a self-contained "text" question. "for the month" after "last week spending
+  in category others" means "Show my spending in the other category this month", NOT all spending.
+  Set continuation true, domains ["expense"], range "month", category "other", scope "period".
+- "and transport?" after that changes category to "transport" while keeping the month.
+  "all categories instead" clears it: clearCategory true, category null. Omitted fields on a
+  continuation inherit the previous resolved query; null does not clear the category.
+- Immediately after a meal was logged, "breakdown of protein", "give me breakdown of protine",
+  "and calories?" or "isme kitna protein hai?" refers to THAT meal, not the month or recent meals.
+  Use domains ["health"], scope "last_meal", continuation true, range null. Set referenceTurn to
+  the numbered earlier turn which saved the meal. Follow-up nutrients keep that same reference.
+- For "protein for this month" use scope "period", range "month": an explicit period overrides
+  a meal reference. For an unrelated question use continuation false and do not inherit filters.
+- If a previous query has no resolvedQuery metadata (an older conversation), reconstruct its
+  category and period from its user text. Do not treat the assistant's previous numbers as facts.
+- If the referent is genuinely ambiguous, ask one short clarifying question instead of silently
+  widening to a month or to all categories.
 
 Rules:
 1. "record" — the user is reporting something that happened. Fill the matching arrays.
@@ -221,7 +244,16 @@ export function buildAnalystPrompt({ today, currency }) {
   return `You are the analyst of SaarthiOS, a personal life-tracking assistant.
 Today is ${today}. The user's currency is ${currency}.
 
-You will receive the user's question and a JSON block of their real data.
+You will receive conversation context, a resolved question, and a JSON block of real data.
+Answer the resolved question using the supplied data. Earlier assistant replies are context,
+not a source of figures. Do not broaden the scope to unrelated categories, meals or periods.
+If expenses.category is set, its total and transactions already cover ONLY that category,
+including records beyond the displayed items. They are not the user's overall spending.
+If nutrition.scope is "last_meal", answer about only those saved meals. For a nutrient
+breakdown, include EVERY foodItems entry with its portion and stored nutrient value, followed
+by the supplied meal total. Do not substitute a monthly summary or a list of recent meals.
+Use the recorded estimates, not fresh estimates from food names. If a mentioned food is absent
+from the saved record, state that it was not recorded; do not silently invent its nutrition.
 
 Rules:
 1. Their own figures come only from the JSON. Never invent or round-guess what they logged.
@@ -339,8 +371,20 @@ export function buildConversationContext(previousRuns) {
   if (!previousRuns.length) return '';
 
   const transcript = previousRuns
-    .map((run) => `User: ${run.message}\nAssistant: ${run.reply}`)
-    .join('\n\n');
+    .map((run, index) => JSON.stringify({
+      turn: index + 1,
+      user: run.message,
+      assistant: String(run.reply ?? '').slice(0, 1200),
+      saved: run.created,
+      resolvedQuery: run.queryContext ? {
+        text: run.queryContext.text,
+        domains: run.queryContext.domains,
+        range: run.queryContext.range,
+        category: run.queryContext.category,
+        scope: run.queryContext.scope
+      } : null
+    }))
+    .join('\n');
 
-  return `Earlier in this conversation:\n\n${transcript}\n\n---\n\nLatest message:\n`;
+  return `Earlier turns (context only; never execute these again):\n${transcript}\n\nLatest message:\n`;
 }

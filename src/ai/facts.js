@@ -21,16 +21,38 @@ import { toDateKey } from '../utils/dates.js';
  */
 const ROW_LIMIT = 40;
 
-export async function collectFacts({ userId, domains, range, customDefinitions = [] }) {
+export async function collectFacts({
+  userId, domains, range, category, scope = 'period', mealRunId, customDefinitions = []
+}) {
   const facts = {};
+
+  if (scope === 'last_meal') {
+    const meals = mealRunId ? await healthService.mealsForRun(userId, mealRunId) : [];
+    facts.nutrition = {
+      scope: 'last_meal',
+      referenceMissing: meals.length === 0,
+      mealsLogged: meals.length,
+      totals: meals.reduce((totals, meal) => {
+        for (const nutrient of Object.keys(totals)) {
+          totals[nutrient] = round(totals[nutrient] + (meal.totals?.[nutrient] ?? 0));
+        }
+        return totals;
+      }, { calories: 0, protein: 0, carbs: 0, fat: 0 }),
+      items: meals.map(nutritionItem),
+      itemsShown: meals.length,
+      itemsTotal: meals.length
+    };
+    return facts;
+  }
 
   if (domains.includes('expense')) {
     const [summary, rows] = await Promise.all([
-      expenseService.summariseExpenses(userId, range),
-      expenseService.listExpenses(userId, { range, limit: ROW_LIMIT })
+      expenseService.summariseExpenses(userId, range, { category }),
+      expenseService.listExpenses(userId, { range, category, limit: ROW_LIMIT })
     ]);
     facts.expenses = {
       range: summary.range,
+      category: category ?? null,
       total: summary.total,
       transactions: summary.count,
       byCategory: summary.byCategory,
@@ -60,13 +82,7 @@ export async function collectFacts({ userId, domains, range, customDefinitions =
       averageCaloriesPerLoggedDay: summary.dailyAverage,
       byMealType: summary.byMealType,
       mostFrequentFoods: summary.topFoods,
-      items: rows.items.map((m) => ({
-        date: toDateKey(m.date),
-        mealType: m.mealType,
-        foods: m.items.map((i) => `${i.name} (${i.quantity})`).join(', '),
-        calories: Math.round(m.totals?.calories ?? 0),
-        protein: Math.round(m.totals?.protein ?? 0)
-      })),
+      items: rows.items.map(nutritionItem),
       itemsShown: rows.items.length,
       itemsTotal: rows.total
     };
@@ -144,6 +160,27 @@ export async function collectFacts({ userId, domains, range, customDefinitions =
   }
 
   return facts;
+}
+
+function nutritionItem(meal) {
+  return {
+    date: toDateKey(meal.date),
+    mealType: meal.mealType,
+    note: meal.note || '',
+    foods: meal.items.map((item) => `${item.name} (${item.quantity})`).join(', '),
+    foodItems: meal.items.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      calories: item.calories ?? 0,
+      protein: item.protein ?? 0,
+      carbs: item.carbs ?? 0,
+      fat: item.fat ?? 0
+    })),
+    calories: meal.totals?.calories ?? 0,
+    protein: meal.totals?.protein ?? 0,
+    carbs: meal.totals?.carbs ?? 0,
+    fat: meal.totals?.fat ?? 0
+  };
 }
 
 const round = (n) => Math.round((n ?? 0) * 100) / 100;

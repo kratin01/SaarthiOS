@@ -107,11 +107,13 @@ export async function updateExpense(userId, id, input) {
 }
 
 /** Totals + per-category split + a daily series for the chart. */
-export async function summariseExpenses(userId, range = 'month') {
+export async function summariseExpenses(userId, range = 'month', { category } = {}) {
   const { from, to, label } = resolveRange(range);
+  const filter = { user: toObjectId(userId), date: { $gte: from, $lte: to } };
+  if (category) filter.category = category;
 
   const [rows] = await Expense.aggregate([
-    { $match: { user: toObjectId(userId), date: { $gte: from, $lte: to } } },
+    { $match: filter },
     {
       $facet: {
         total: [{ $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } }],

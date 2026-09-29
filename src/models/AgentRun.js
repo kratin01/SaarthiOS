@@ -16,6 +16,18 @@ const stepSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const queryContextSchema = new mongoose.Schema(
+  {
+    domains: [String],
+    range: String,
+    category: { type: String, default: null },
+    scope: { type: String, enum: ['period', 'last_meal'], default: 'period' },
+    mealRunId: { type: mongoose.Schema.Types.ObjectId, ref: 'AgentRun', default: null },
+    text: { type: String, maxlength: 2000 }
+  },
+  { _id: false }
+);
+
 const agentRunSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -29,6 +41,7 @@ const agentRunSchema = new mongoose.Schema(
     reply: { type: String, default: '' },
     /** `record` saved data, `query` answered a question, `clarify` asked one back. */
     intent: { type: String, enum: ['record', 'query', 'chat', 'clarify'], default: 'chat' },
+    queryContext: { type: queryContextSchema, default: null },
     agentsUsed: [{ type: String, enum: AGENTS }],
     steps: { type: [stepSchema], default: [] },
     /** Counts of what was written, so the UI can say "2 expenses, 1 meal". */

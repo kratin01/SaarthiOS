@@ -151,8 +151,14 @@ export const questionSchema = z.object({
   domains: z
     .array(z.string().max(40))
     .nullish()
-    .transform((v) => (v?.length ? [...new Set(v)] : ['expense'])),
-  range: rangeSchema.catch('month')
+    .transform((v) => (v?.length ? [...new Set(v)] : [])),
+  range: rangeSchema.nullish().catch(null),
+  category: z.string().trim().max(60).nullish(),
+  clearCategory: z.boolean().catch(false),
+  continuation: z.boolean().catch(false),
+  scope: z.enum(['period', 'last_meal']).nullish(),
+  referenceTurn: z.number().int().positive().nullish(),
+  text: text(600)
 });
 
 /**

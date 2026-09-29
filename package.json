@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "test": "node --test",
     "seed": "node src/scripts/seed.js",
     "migrate:conversations": "node src/scripts/migrateConversations.js",
     "migrate:google-index": "node src/scripts/fixGoogleIdIndex.js"
