@@ -332,8 +332,8 @@ function buildInsights({
     insights.push({
       tone: used > 110 ? 'warn' : 'good',
       text: isMonth
-        ? `Averaging ${value} kcal a day — about ${used}% of your ${user.dailyCalorieGoal} kcal goal.`
-        : `${value} kcal today — about ${used}% of your ${user.dailyCalorieGoal} kcal goal.`
+        ? `Averaging ${value} kcal a day, about ${used}% of your ${user.dailyCalorieGoal} kcal goal.`
+        : `${value} kcal today, about ${used}% of your ${user.dailyCalorieGoal} kcal goal.`
     });
   }
 

@@ -26,7 +26,7 @@ const GOAL_RULES = {
     label: 'Bulk',
     calorieFactor: 1.15,
     proteinPerKg: 1.8,
-    note: 'A small surplus. Bigger is not better here — it just adds fat.'
+    note: 'A small surplus. Bigger is not better here, it just adds fat.'
   }
 };
 

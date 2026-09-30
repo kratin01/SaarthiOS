@@ -25,7 +25,7 @@ export const PROVIDER_CATALOG = {
     keyHelp: 'platform.openai.com → API keys',
     audio: { model: 'whisper-1' },
     suggested: [
-      { id: 'gpt-4o-mini', note: 'Fast and cheap — recommended' },
+      { id: 'gpt-4o-mini', note: 'Fast and cheap, recommended' },
       { id: 'gpt-4o', note: 'More capable' },
       { id: 'gpt-4.1-mini', note: 'Fast' },
       { id: 'gpt-4.1', note: 'Most capable' }
@@ -45,7 +45,7 @@ export const PROVIDER_CATALOG = {
     /** Gemini reads audio on the normal endpoint, so there is no separate model. */
     audio: {},
     suggested: [
-      { id: 'gemini-2.5-flash', note: 'Fast and steady — recommended' },
+      { id: 'gemini-2.5-flash', note: 'Fast and steady, recommended' },
       { id: 'gemini-flash-latest', note: 'Newest flash, slower and busier' },
       { id: 'gemini-flash-lite-latest', note: 'Cheapest, but often overloaded' },
       { id: 'gemini-pro-latest', note: 'Most capable, slowest' }
@@ -58,7 +58,7 @@ export const PROVIDER_CATALOG = {
     model: 'claude-3-5-haiku-latest',
     keyHelp: 'console.anthropic.com → API keys',
     suggested: [
-      { id: 'claude-3-5-haiku-latest', note: 'Fast — recommended' },
+      { id: 'claude-3-5-haiku-latest', note: 'Fast, recommended' },
       { id: 'claude-sonnet-4-5', note: 'More capable' }
     ]
   },
@@ -87,7 +87,7 @@ export const PROVIDER_CATALOG = {
     fallbackOnRateLimit: true,
     keyHelp: 'openrouter.ai → Keys',
     suggested: [
-      { id: 'deepseek/deepseek-chat', note: 'Cheap and capable — recommended' },
+      { id: 'deepseek/deepseek-chat', note: 'Cheap and capable, recommended' },
       { id: 'meta-llama/llama-3.3-70b-instruct', note: 'Open weights' },
       { id: 'google/gemini-2.0-flash-001', note: 'Fast' },
       { id: 'openai/gpt-4o-mini', note: 'Reliable fallback' }
@@ -126,7 +126,7 @@ export const PROVIDER_CATALOG = {
     baseUrl: 'http://localhost:11434/v1',
     model: 'llama3.1',
     keyOptional: true,
-    keyHelp: 'No key needed — just run Ollama locally',
+    keyHelp: 'No key needed. Just run Ollama locally.',
     suggested: [{ id: 'llama3.1', note: 'Whatever you have pulled' }]
   },
   lmstudio: {
@@ -135,7 +135,7 @@ export const PROVIDER_CATALOG = {
     baseUrl: 'http://localhost:1234/v1',
     model: 'local-model',
     keyOptional: true,
-    keyHelp: 'No key needed — start the LM Studio server',
+    keyHelp: 'No key needed. Start the LM Studio server.',
     suggested: [{ id: 'local-model', note: 'Whatever is loaded' }]
   },
   custom: {
@@ -144,7 +144,7 @@ export const PROVIDER_CATALOG = {
     baseUrl: '',
     model: '',
     keyOptional: true,
-    keyHelp: 'Any server that speaks the OpenAI chat format',
+    keyHelp: 'Any server that speaks the OpenAI chat format.',
     suggested: []
   }
 };

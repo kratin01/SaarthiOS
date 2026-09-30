@@ -30,7 +30,8 @@ export const updateProfileSchema = z.object({
   dailyProteinGoal: z.coerce.number().min(0).max(1000).optional(),
   heightCm: z.coerce.number().min(50).max(260).nullable().optional(),
   weightKg: z.coerce.number().min(20).max(400).nullable().optional(),
-  bodyGoal: z.enum(BODY_GOALS).optional()
+  bodyGoal: z.enum(BODY_GOALS).optional(),
+  tutorialStatus: z.enum(['skipped', 'completed']).optional()
 });
 
 /** Preview only — nothing is saved until the user accepts the numbers. */
@@ -58,6 +59,7 @@ export const register = asyncHandler(async (req, res) => {  const { name, email,
   const user = await User.create({
     name,
     email,
+    tutorialStatus: 'pending',
     passwordHash: await User.hashPassword(password)
   });
 
@@ -106,6 +108,7 @@ export const googleSignIn = asyncHandler(async (req, res) => {
         name: profile.name,
         email: profile.email,
         googleId: profile.googleId,
+        tutorialStatus: 'pending',
         avatarUrl: profile.avatarUrl
       });
     }

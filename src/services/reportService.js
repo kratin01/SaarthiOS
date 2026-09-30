@@ -64,7 +64,7 @@ export async function buildExpenseReport(user, range) {
     },
     {
       label: 'Biggest category',
-      value: byCategory[0] ? labelise(byCategory[0].key) : '—',
+      value: byCategory[0] ? labelise(byCategory[0].key) : 'None',
       hint: byCategory[0] ? `${share(byCategory[0].amount, total)} of everything spent` : ''
     },
     {
@@ -126,7 +126,7 @@ export async function buildExpenseReport(user, range) {
         grouped.push([
           xl.excelDate(item.date),
           describeExpense(item),
-          item.merchant || '—',
+          item.merchant || '',
           item.amount
         ]);
       }
@@ -285,7 +285,7 @@ export async function buildHealthReport(user, range) {
     { label: 'Calories in total', value: totals.calories, numFmt: xl.NUMBER_FORMAT },
     {
       label: 'Biggest meal of the day',
-      value: byMealType[0] ? labelise(byMealType[0].key) : '—',
+      value: byMealType[0] ? labelise(byMealType[0].key) : 'None',
       hint: byMealType[0] ? `${share(byMealType[0].amount, totals.calories)} of all calories` : ''
     }
   ], { span: 5 });
@@ -513,7 +513,7 @@ function describePeriod(range, earliest) {
     from: start,
     to: end,
     days,
-    subtitle: `${sentenceCase(label)}  ·  ${dateText(start)} – ${dateText(end)}`
+    subtitle: `${sentenceCase(label)}  ·  ${dateText(start)} to ${dateText(end)}`
   };
 }
 

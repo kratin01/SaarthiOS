@@ -204,5 +204,5 @@ export const envLlmStatus = () =>
 const describeIssues = (error) =>
   error.issues
     .slice(0, 5)
-    .map((i) => `${i.path.join('.') || 'root'} — ${i.message}`)
+    .map((i) => `${i.path.join('.') || 'root'}: ${i.message}`)
     .join('; ');

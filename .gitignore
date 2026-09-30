@@ -13,6 +13,9 @@ npm-debug.log*
 # scratch space for one-off scripts
 tmp/
 
+# private notes for AI coding agents, never pushed
+AGENT_README.md
+
 # editors / os
 .DS_Store
 Thumbs.db

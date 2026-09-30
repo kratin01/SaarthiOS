@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema(
      */
     googleId: { type: String, default: undefined },
     avatarUrl: { type: String, default: '', maxlength: 500 },
+    tutorialStatus: { type: String, enum: ['pending', 'skipped', 'completed'], default: undefined },
     currency: { type: String, default: 'INR', maxlength: 8 },
     /**
      * Categories this user invented, beyond the built-in list. Stored on the

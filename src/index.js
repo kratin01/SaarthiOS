@@ -15,7 +15,7 @@ async function main() {
     logger.info(`SaarthiOS API on http://localhost:${env.PORT} (${env.NODE_ENV})`);
 
     if (!isDatabaseReady()) {
-      logger.warn('Started before MongoDB was reachable — retrying in the background.');
+      logger.warn('Started before MongoDB was reachable. Retrying in the background.');
     }
 
     if (env.isProd) {
@@ -28,7 +28,7 @@ async function main() {
       // yesterday's numbers to anyone ahead of it until their morning catches
       // up, which reads as stale data rather than a misconfiguration.
       logger.info(
-        `Timezone ${Intl.DateTimeFormat().resolvedOptions().timeZone} — today is ${toDateKey(new Date())}. Set TZ in .env if that is not your date.`
+        `Timezone ${Intl.DateTimeFormat().resolvedOptions().timeZone}, today is ${toDateKey(new Date())}. Set TZ in .env if that is not your date.`
       );
 
       // Otherwise the only symptom of a missing allowlist is a nav item that
@@ -59,13 +59,13 @@ async function main() {
     if (ai.ok) {
       logger.info(`Default AI provider: ${ai.label} · ${ai.model}`);
     } else {
-      logger.warn(`No default AI in .env — ${ai.reason} Users can add their own key in Settings.`);
+      logger.warn(`No default AI in .env: ${ai.reason} Users can add their own key in Settings.`);
     }
 
     if (env.googleEnabled) {
       logger.info('Google sign-in enabled');
     } else {
-      logger.warn('Google sign-in disabled — GOOGLE_CLIENT_ID is not set.');
+      logger.warn('Google sign-in disabled because GOOGLE_CLIENT_ID is not set.');
     }
   });
 

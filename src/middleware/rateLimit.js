@@ -25,7 +25,7 @@ export const chatLimiter = rateLimit({
   ...base,
   windowMs: 60_000,
   limit: 20,
-  message: { error: { message: 'Give the agents a moment — too many messages at once.' } }
+  message: { error: { message: 'Too many messages at once. Give the agents a moment.' } }
 });
 
 export const quoteLimiter = rateLimit({

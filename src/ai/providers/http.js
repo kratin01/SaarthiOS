@@ -52,7 +52,7 @@ async function request(url, { method, headers, body, timeoutMs, providerLabel })
 /** The four statuses users actually hit, in words they can act on. */
 function explain(status, providerLabel) {
   if (status === 429) {
-    return `${providerLabel} is rate limiting you. Free tiers allow only a few requests a minute — wait a moment and try again.`;
+    return `${providerLabel} is rate limiting you. Free tiers allow only a few requests a minute, so wait a moment and try again.`;
   }
   if (status === 401 || status === 403) {
     return `${providerLabel} rejected your API key. Check it in Settings.`;

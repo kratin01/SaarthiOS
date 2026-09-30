@@ -261,7 +261,7 @@ function composeSaveReply(outcomes, currency) {
       );
       const t = result.totals;
       parts.push(
-        `Meal logged — ${items.slice(0, 4).join(', ')}. Roughly ${t.calories} kcal, ${t.protein} g protein. These are estimates for that portion.`
+        `Meal logged: ${items.slice(0, 4).join(', ')}. Roughly ${t.calories} kcal, ${t.protein} g protein. These are estimates for that portion.`
       );
     }
     if (agent.name === 'investment') {
@@ -271,7 +271,7 @@ function composeSaveReply(outcomes, currency) {
       // The monthly figure, not the billed figure: "2400 a year" is easy to
       // wave away, "200 a month" is the one that registers.
       parts.push(
-        `Now tracking ${result.names.join(', ')} — ${money(result.total, currency)} a month.`
+        `Now tracking ${result.names.join(', ')}. That comes to ${money(result.total, currency)} a month.`
       );
     }
     if (agent.name === 'custom') {
@@ -286,7 +286,7 @@ function composeSaveReply(outcomes, currency) {
           })
           .filter(Boolean);
 
-        return stats.length ? `${entry.title} — ${stats.join(', ')}` : entry.title;
+        return stats.length ? `${entry.title} (${stats.join(', ')})` : entry.title;
       });
 
       parts.push(`${agent.definition.name}: ${summarised.join('; ')}.`);

@@ -23,7 +23,7 @@ const DETECTED = {
     'We are having trouble reaching the database, so things may not save right now. Please try again in a few minutes.',
   ai: 'The AI is not responding at the moment, so chat and tips may fail. Your saved data is unaffected.',
   aiMissing:
-    'No AI provider is set up yet, so chat and tips are off. Add a key in Settings — everything else works without one.',
+    'No AI provider is set up yet, so chat and tips are off. Add a key in Settings. Everything else works without one.',
   prices:
     'Live share prices are unavailable right now. Everything you have saved is fine; only the current value cannot be fetched.'
 };
