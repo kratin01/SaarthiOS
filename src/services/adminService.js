@@ -6,7 +6,16 @@
  * ate is not, and the moment this page can do that, one stolen session becomes
  * everyone's private log.
  */
-import { User, Expense, Meal, Investment, AgentRun, CustomAgent } from '../models/index.js';
+import {
+  User,
+  Expense,
+  Meal,
+  Investment,
+  Subscription,
+  CustomEntry,
+  AgentRun,
+  CustomAgent
+} from '../models/index.js';
 import { addDays, startOfDay } from '../utils/dates.js';
 import { pageInfo } from '../utils/paging.js';
 
@@ -18,14 +27,20 @@ const countAndLatest = (model) =>
 
 const laterOf = (a, b) => (!a ? b : !b ? a : a > b ? a : b);
 
-export async function getAdminOverview({ days = 30, limit, offset = 0 } = {}) {
+/** Latest activity first. People who never used it follow, newest signup first. */
+const byRecentActivity = (a, b) =>
+  (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0) || b.joinedAt - a.joinedAt;
+
+export async function getAdminOverview({ days = 30, limit, offset = 0, sort = 'active' } = {}) {
   const since = startOfDay(addDays(new Date(), -(days - 1)));
 
-  const [users, expenses, meals, investments, runs, agents] = await Promise.all([
+  const [users, expenses, meals, investments, subscriptions, entries, runs, agents] = await Promise.all([
     User.find({}).select('name email createdAt googleId').sort({ createdAt: -1 }).lean(),
     countAndLatest(Expense),
     countAndLatest(Meal),
     countAndLatest(Investment),
+    countAndLatest(Subscription),
+    countAndLatest(CustomEntry),
     countAndLatest(AgentRun),
     countAndLatest(CustomAgent)
   ]);
@@ -36,11 +51,13 @@ export async function getAdminOverview({ days = 30, limit, offset = 0 } = {}) {
       expenses: expenses.get(id)?.count ?? 0,
       meals: meals.get(id)?.count ?? 0,
       investments: investments.get(id)?.count ?? 0,
+      subscriptions: subscriptions.get(id)?.count ?? 0,
+      entries: entries.get(id)?.count ?? 0,
       messages: runs.get(id)?.count ?? 0,
       agents: agents.get(id)?.count ?? 0
     };
 
-    const lastActive = [expenses, meals, investments, runs]
+    const lastActive = [expenses, meals, investments, subscriptions, entries, runs]
       .map((m) => m.get(id)?.last)
       .reduce(laterOf, null);
 
@@ -51,37 +68,41 @@ export async function getAdminOverview({ days = 30, limit, offset = 0 } = {}) {
       joinedAt: u.createdAt,
       signedInWith: u.googleId ? 'google' : 'password',
       lastActiveAt: lastActive ?? null,
-      records: counts.expenses + counts.meals + counts.investments,
+      records:
+        counts.expenses + counts.meals + counts.investments + counts.subscriptions + counts.entries,
       ...counts
     };
   });
 
-  const now = Date.now();
-  const withinDays = (date, n) => date && now - new Date(date).getTime() <= n * 86400000;
+  if (sort === 'active') people.sort(byRecentActivity);
 
-  // A signup that never logged anything is the number that actually matters,
-  // and it is invisible in a plain user count.
+  // Counted inside the chosen window, like the charts beside them, so one
+  // screen never mixes "this week" with "30 days". A signup that never logged
+  // anything is the number that actually matters, and it is invisible in a
+  // plain user count.
   const activity = {
     total: people.length,
-    newThisWeek: people.filter((p) => withinDays(p.joinedAt, 7)).length,
-    activeSevenDays: people.filter((p) => withinDays(p.lastActiveAt, 7)).length,
-    activeThirtyDays: people.filter((p) => withinDays(p.lastActiveAt, 30)).length,
+    newInWindow: people.filter((p) => p.joinedAt >= since).length,
+    activeInWindow: people.filter((p) => p.lastActiveAt && p.lastActiveAt >= since).length,
     neverUsed: people.filter((p) => !p.lastActiveAt).length
   };
 
-  const [signupsByDay, runsByDay, failures] = await Promise.all([
+  const failedRuns = { createdAt: { $gte: since }, status: { $ne: 'completed' } };
+  const [signupsByDay, runsByDay, failures, runsTotal, runsFailed] = await Promise.all([
     perDay(User, since),
     perDay(AgentRun, since),
     AgentRun.aggregate([
-      { $match: { createdAt: { $gte: since }, status: { $ne: 'completed' } } },
+      { $match: failedRuns },
       { $group: { _id: '$error', count: { $sum: 1 }, last: { $max: '$createdAt' } } },
       { $sort: { count: -1 } },
       { $limit: 8 }
-    ])
+    ]),
+    AgentRun.countDocuments({ createdAt: { $gte: since } }),
+    // Counted separately: the list above stops at 8 reasons, the rate must not.
+    AgentRun.countDocuments(failedRuns)
   ]);
 
-  const runsTotal = await AgentRun.countDocuments({ createdAt: { $gte: since } });
-  const runsFailed = failures.reduce((sum, f) => sum + f.count, 0);
+  const shown = people.slice(offset, offset + limit);
 
   return {
     generatedAt: new Date(),
@@ -89,17 +110,14 @@ export async function getAdminOverview({ days = 30, limit, offset = 0 } = {}) {
     users: activity,
     // Every account is loaded because the summary above counts across all of
     // them; only the table is paged.
-    people: people.slice(offset, offset + limit),
-    page: pageInfo({
-      limit,
-      offset,
-      total: people.length,
-      count: people.slice(offset, offset + limit).length
-    }),
+    people: shown,
+    page: pageInfo({ limit, offset, total: people.length, count: shown.length }),
     totals: {
       expenses: sumOf(expenses),
       meals: sumOf(meals),
       investments: sumOf(investments),
+      subscriptions: sumOf(subscriptions),
+      entries: sumOf(entries),
       messages: sumOf(runs),
       agents: sumOf(agents)
     },
