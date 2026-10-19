@@ -82,8 +82,11 @@ export const INVESTMENT_TYPES = [
   'other'
 ];
 
-/** `custom` covers every user-defined agent, whatever they named it. */
-export const AGENTS = ['expense', 'health', 'investment', 'subscription', 'profile', 'custom'];
+/**
+ * `custom` covers every user-defined agent, whatever they named it. `apps`
+ * links outside apps such as Swiggy and imports their orders.
+ */
+export const AGENTS = ['expense', 'health', 'investment', 'subscription', 'profile', 'custom', 'apps'];
 
 /** Where a record came from: a form, extracted from chat, or read off a file. */
 export const SOURCES = ['manual', 'chat', 'import'];
@@ -95,7 +98,8 @@ export const AGENT_META = {
   investment: { label: 'Investment Agent', color: '#6B87A8' },
   subscription: { label: 'Subscription Agent', color: '#A8829E' },
   profile: { label: 'Profile Agent', color: '#7C8CA8' },
-  custom: { label: 'Custom Agent', color: '#8E7CC3' }
+  custom: { label: 'Custom Agent', color: '#8E7CC3' },
+  apps: { label: 'Apps Agent', color: '#B9825F' }
 };
 
 /** What a custom agent can track. Kept deliberately small — see the README. */

@@ -194,6 +194,21 @@ export const profileDraftSchema = z.object({
     .catch(undefined)
 });
 
+/**
+ * Linking an outside app, or bringing its recent orders in. `app` is matched
+ * against the catalogue later; `count` is clamped rather than rejected.
+ */
+export const appRequestSchema = z.object({
+  action: z.enum(['connect', 'fetch_orders']),
+  app: text(40).transform((v) => v.trim().toLowerCase()),
+  count: z.coerce
+    .number()
+    .finite()
+    .nullish()
+    .catch(null)
+    .transform((v) => Math.min(5, Math.max(1, Math.round(v ?? 1))))
+});
+
 /** What the orchestrator asks the model to produce for every chat message. */
 export const planSchema = z.object({
   intent: z.enum(['record', 'query', 'chat', 'clarify', 'out_of_scope']).catch('chat'),
@@ -203,6 +218,10 @@ export const planSchema = z.object({
   subscriptions: list(subscriptionDraftSchema),
   custom: list(customDraftSchema),
   profile: profileDraftSchema.nullish().transform((v) => v ?? {}),
+  app: appRequestSchema
+    .nullish()
+    .catch(null)
+    .transform((v) => v ?? null),
   question: questionSchema.nullish(),
   /** The single short question to ask back when intent is `clarify`. */
   clarify: text(300),
@@ -289,6 +308,23 @@ export const documentPlanSchema = z.object({
   expenses: list(expenseDraftSchema),
   meals: list(mealDraftSchema),
   investments: list(investmentDraftSchema)
+});
+
+/**
+ * Nutrition for the dishes in imported orders. Only the estimate comes from the
+ * model; the order itself (restaurant, amount, time) comes from the app. A bad
+ * entry is dropped rather than failing the others.
+ */
+export const orderNutritionSchema = z.object({
+  meals: list(
+    z
+      .object({
+        orderId: z.coerce.string().max(80),
+        items: z.array(foodItemDraftSchema).min(1).max(30)
+      })
+      .nullable()
+      .catch(null)
+  ).transform((meals) => meals.filter(Boolean))
 });
 
 /** The rows the user ticked, posted back for saving. */

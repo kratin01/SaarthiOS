@@ -5,3 +5,4 @@ export { subscriptionAgent } from './subscriptionAgent.js';
 export { profileAgent } from './profileAgent.js';
 export { analystAgent } from './analystAgent.js';
 export { buildCustomAgent } from './customAgent.js';
+export { appsAgent } from './appsAgent.js';

@@ -11,6 +11,7 @@ import healthRoutes from './health.routes.js';
 import investmentRoutes from './investment.routes.js';
 import subscriptionRoutes from './subscription.routes.js';
 import customAgentRoutes from './customAgent.routes.js';
+import connectionRoutes from './connection.routes.js';
 import { buildStatus } from '../services/statusService.js';
 import { databaseState } from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -70,6 +71,7 @@ router.use('/meals', healthRoutes);
 router.use('/investments', investmentRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/agents', customAgentRoutes);
+router.use('/connections', connectionRoutes);
 router.use('/admin', adminRoutes);
 
 export default router;

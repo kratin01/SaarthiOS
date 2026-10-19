@@ -23,6 +23,7 @@ import {
   subscriptionAgent,
   profileAgent,
   analystAgent,
+  appsAgent,
   buildCustomAgent
 } from './agents/index.js';
 import { resolveForUser } from '../services/aiSettingsService.js';
@@ -87,6 +88,7 @@ export async function handleMessage({ user, message, conversation }) {
     const agentsUsed = [];
     const created = { expenses: 0, meals: 0, investments: 0, subscriptions: 0, custom: 0 };
     let queryContext = null;
+    let action = null;
     let reply = '';
 
     if (plan.intent === 'out_of_scope') {
@@ -169,18 +171,37 @@ export async function handleMessage({ user, message, conversation }) {
         jobs.push(agent.run({ ...context, drafts }).then((r) => ({ agent, result: r })));
       }
 
+      if (plan.app) {
+        agentsUsed.push('apps');
+        jobs.push(
+          appsAgent
+            .run({ ...context, user, request: plan.app, config: aiConfig })
+            .then((r) => ({ agent: appsAgent, result: r }))
+        );
+      }
+
       const outcomes = await Promise.all(jobs);
 
       for (const { agent, result } of outcomes) {
-        // The profile agent changes settings rather than creating rows, so it
-        // reports on `changed` instead.
-        const did = agent.name === 'profile' ? result.changed.length : result.created.length;
+        // The profile agent changes settings rather than creating rows, and the
+        // apps agent may only hand back a sign-in, so both report differently.
+        const did =
+          agent.name === 'profile'
+            ? result.changed.length
+            : agent.name === 'apps'
+              ? result.done
+              : result.created.length;
         step(agent.name, agent.label, result.summary, did ? 'done' : 'skipped');
-        if (agent.name === 'expense') created.expenses = result.created.length;
-        if (agent.name === 'health') created.meals = result.created.length;
+        if (agent.name === 'expense') created.expenses += result.created.length;
+        if (agent.name === 'health') created.meals += result.created.length;
         if (agent.name === 'investment') created.investments = result.created.length;
         if (agent.name === 'subscription') created.subscriptions = result.created.length;
         if (agent.name === 'custom') created.custom += result.created.length;
+        if (agent.name === 'apps') {
+          created.expenses += result.expenses.length;
+          created.meals += result.meals.length;
+          action = result.action;
+        }
       }
 
       reply = outcomes.length
@@ -194,6 +215,7 @@ export async function handleMessage({ user, message, conversation }) {
       reply,
       intent: plan.intent === 'out_of_scope' ? 'chat' : plan.intent,
       queryContext,
+      action,
       agentsUsed: [...new Set(agentsUsed)],
       steps,
       created,
@@ -246,6 +268,10 @@ function composeSaveReply(outcomes, currency) {
   for (const { agent, result } of outcomes) {
     if (agent.name === 'profile') {
       if (result.changed.length) parts.push(result.summary);
+      continue;
+    }
+    if (agent.name === 'apps') {
+      parts.push(result.reply);
       continue;
     }
     if (!result.created.length) continue;

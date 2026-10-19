@@ -28,6 +28,16 @@ const queryContextSchema = new mongoose.Schema(
   { _id: false }
 );
 
+/** Something the UI offers under the reply, such as a button to sign in to Swiggy. */
+const actionSchema = new mongoose.Schema(
+  {
+    kind: { type: String, enum: ['connect_app'], required: true },
+    app: { type: String, required: true },
+    label: { type: String, default: '' }
+  },
+  { _id: false }
+);
+
 const agentRunSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -52,6 +62,7 @@ const agentRunSchema = new mongoose.Schema(
       subscriptions: { type: Number, default: 0 },
       custom: { type: Number, default: 0 }
     },
+    action: { type: actionSchema, default: null },
     status: { type: String, enum: ['completed', 'failed'], default: 'completed' },
     error: { type: String, default: '' },
     durationMs: { type: Number, default: 0 }

@@ -63,6 +63,14 @@ const schema = z.object({
   PAGE_SIZE: z.coerce.number().int().min(1).max(100).default(7),
 
   /**
+   * Outside apps people may link, comma separated, for example `swiggy`.
+   * Unset means `swiggy` in development and none in production: an app only
+   * accepts sign-in from redirect addresses it has approved, and an unapproved
+   * one strands people on the app's error page.
+   */
+  CONNECTED_APPS: z.string().optional(),
+
+  /**
    * Operator notices. Set any of these to a sentence and it appears in the app
    * straight away — no redeploy, no code change. Blank means nothing is shown.
    * Use them when something is known to be broken so users read your words
@@ -110,5 +118,9 @@ export const env = Object.freeze({
   /** Lowercased, because email comparison is case-insensitive in practice. */
   adminEmails: raw.ADMIN_EMAILS.split(',')
     .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+  connectedApps: (raw.CONNECTED_APPS ?? (raw.NODE_ENV === 'production' ? '' : 'swiggy'))
+    .split(',')
+    .map((a) => a.trim().toLowerCase())
     .filter(Boolean)
 });
