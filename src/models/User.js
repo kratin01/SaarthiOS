@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { BODY_GOALS } from '../config/constants.js';
+import { BODY_GOALS, INSPIRATION_KINDS } from '../config/constants.js';
 
 const userSchema = new mongoose.Schema(
   {
@@ -38,7 +38,10 @@ const userSchema = new mongoose.Schema(
     /** Null until the user fills in the body profile on the Health page. */
     heightCm: { type: Number, default: null, min: 50, max: 260 },
     weightKg: { type: Number, default: null, min: 20, max: 400 },
-    bodyGoal: { type: String, enum: BODY_GOALS, default: 'normal' }
+    bodyGoal: { type: String, enum: BODY_GOALS, default: 'normal' },
+    /** Cards shown on the Overview. Absent = the web's default set. */
+    overviewCards: { type: [String], default: undefined },
+    inspirationKind: { type: String, enum: INSPIRATION_KINDS, default: 'affirmation' }
   },
   { timestamps: true }
 );

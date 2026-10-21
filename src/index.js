@@ -67,6 +67,12 @@ async function main() {
     } else {
       logger.warn('Google sign-in disabled because GOOGLE_CLIENT_ID is not set.');
     }
+
+    logger.info(
+      env.TAVILY_API_KEY
+        ? 'Web search for Overview insights enabled (Tavily)'
+        : 'Web search for Overview insights off because TAVILY_API_KEY is not set.'
+    );
   });
 
   const shutdown = async (signal) => {

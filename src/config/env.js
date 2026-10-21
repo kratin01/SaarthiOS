@@ -78,7 +78,10 @@ const schema = z.object({
   LLM_MODEL: z.string().default(''),
   LLM_BASE_URL: z.string().default(''),
   LLM_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
-  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(45000)
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(45000),
+
+  /** Web search for the Overview insight agent (tavily.com). Blank = no web search. */
+  TAVILY_API_KEY: z.string().default('')
 });
 
 const parsed = schema.safeParse(process.env);

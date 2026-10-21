@@ -1,9 +1,9 @@
 /**
  * Builds the single payload the home dashboard needs, plus the rule-based
- * "insights" line. These insights are plain arithmetic, not AI — that keeps the
- * dashboard fast, free and always available.
+ * "insights" lines. Those are plain arithmetic, kept as the fallback for when
+ * the AI insight agent (`overviewService`) cannot run.
  */
-import { Expense, Meal, Investment, CustomEntry } from '../models/index.js';
+import { Expense, Meal, Investment, CustomEntry, CustomAgent } from '../models/index.js';
 import { toObjectId } from '../utils/ids.js';
 import {
   startOfDay,
@@ -15,6 +15,8 @@ import {
   dayBuckets
 } from '../utils/dates.js';
 import * as expenseService from './expenseService.js';
+import * as subscriptionService from './subscriptionService.js';
+import * as customAgentService from './customAgentService.js';
 import { pageInfo } from '../utils/paging.js';
 
 export const DASHBOARD_PERIODS = ['today', 'month'];
@@ -69,7 +71,10 @@ export async function getDashboard(user, period = 'today') {
     expenseSeries,
     nutrition,
     nutritionSeries,
-    recent
+    recent,
+    investments,
+    subscriptions,
+    agents
   ] = await Promise.all([
     expenseService.totalBetween(userId, window.from, window.to),
     expenseService.totalBetween(userId, window.prevFrom, window.prevTo),
@@ -77,7 +82,11 @@ export async function getDashboard(user, period = 'today') {
     groupExpenseByDay(userId, window.seriesFrom, seriesTo),
     nutritionBetween(userId, window.from, window.to),
     nutritionByDay(userId, window.seriesFrom, seriesTo),
-    recentActivity(userId, { limit: RECENT_LIMIT, offset: 0 })
+    recentActivity(userId, { limit: RECENT_LIMIT, offset: 0 }),
+    // Investing is a monthly habit, so this card always shows the month.
+    investedBetween(userId, startOfMonth(now), endOfMonth(now)),
+    subscriptionService.summariseSubscriptions(userId, now),
+    agentStats(userId, window.id)
   ]);
 
   const loggedDays = countLoggedDays(nutritionSeries, window.from);
@@ -100,10 +109,19 @@ export async function getDashboard(user, period = 'today') {
     health: {
       totals: nutrition,
       calorieGoal: user.dailyCalorieGoal,
+      proteinGoal: user.dailyProteinGoal,
       loggedDays,
       dailyAverage: loggedDays ? Math.round(nutrition.calories / loggedDays) : 0,
+      dailyProteinAverage: loggedDays ? Math.round(nutrition.protein / loggedDays) : 0,
       series: nutritionSeries
     },
+    investments,
+    subscriptions: {
+      monthly: Math.round(subscriptions.monthly),
+      activeCount: subscriptions.activeCount,
+      next: subscriptions.upcoming[0] ?? null
+    },
+    agents,
     recent: recent.items,
     recentPage: pageInfo({
       limit: RECENT_LIMIT,
@@ -131,6 +149,32 @@ function countLoggedDays(series, from) {
 }
 
 /* ── queries ─────────────────────────────────────────────────────────── */
+
+async function investedBetween(userId, from, to) {
+  const [row] = await Investment.aggregate([
+    { $match: { user: userId, date: { $gte: from, $lte: to } } },
+    { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+  ]);
+  return { total: row?.total ?? 0, count: row?.count ?? 0 };
+}
+
+/** Entries and the first numeric stat of every active custom agent, for its Overview card. */
+async function agentStats(userId, range) {
+  const agents = await CustomAgent.find({ user: userId, active: true }).sort({ createdAt: 1 }).lean();
+  return Promise.all(
+    agents.map(async (agent) => {
+      const summary = await customAgentService.summariseEntries(userId, agent, range);
+      return {
+        id: String(agent._id),
+        slug: agent.slug,
+        name: agent.name,
+        icon: agent.icon,
+        count: summary.count,
+        stat: summary.totals[0] ?? null
+      };
+    })
+  );
+}
 
 async function groupExpenseByCategory(userId, from, to) {
   const rows = await Expense.aggregate([

@@ -6,7 +6,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { signToken, isAdmin } from '../middleware/auth.js';
 import { googleStatus, verifyGoogleToken } from '../services/googleAuthService.js';
 import { computeBodyTargets } from '../services/bodyProfileService.js';
-import { BODY_GOALS } from '../config/constants.js';
+import { BODY_GOALS, INSPIRATION_KINDS, isOverviewCard } from '../config/constants.js';
 
 /** Admin is worked out from the environment allowlist, never stored on the row. */
 const publicUser = (user) => ({ ...user.toJSON(), isAdmin: isAdmin(user) });
@@ -31,7 +31,13 @@ export const updateProfileSchema = z.object({
   heightCm: z.coerce.number().min(50).max(260).nullable().optional(),
   weightKg: z.coerce.number().min(20).max(400).nullable().optional(),
   bodyGoal: z.enum(BODY_GOALS).optional(),
-  tutorialStatus: z.enum(['skipped', 'completed']).optional()
+  tutorialStatus: z.enum(['skipped', 'completed']).optional(),
+  overviewCards: z
+    .array(z.string().refine(isOverviewCard, 'Unknown card'))
+    .max(40)
+    .transform((cards) => [...new Set(cards)])
+    .optional(),
+  inspirationKind: z.enum(INSPIRATION_KINDS).optional()
 });
 
 /** Preview only — nothing is saved until the user accepts the numbers. */

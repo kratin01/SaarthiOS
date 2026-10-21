@@ -9,3 +9,4 @@ export { GlobalAiSetting } from './GlobalAiSetting.js';
 export { Conversation } from './Conversation.js';
 export { CustomAgent } from './CustomAgent.js';
 export { CustomEntry } from './CustomEntry.js';
+export { DailyBrief } from './DailyBrief.js';

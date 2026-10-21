@@ -149,3 +149,32 @@ export const RESERVED_AGENT_SLUGS = [
   'meals',
   'import'
 ];
+
+/** Cards a person can show on the Overview. Each custom agent adds `agent:<id>`. */
+export const OVERVIEW_CARDS = [
+  'inspiration',
+  'insights',
+  'spent',
+  'calories',
+  'protein',
+  'investments',
+  'subscriptions',
+  'spending_trend',
+  'calories_trend',
+  'categories',
+  'activity'
+];
+
+export const isOverviewCard = (id) =>
+  OVERVIEW_CARDS.includes(id) || /^agent:[a-f0-9]{24}$/.test(id);
+
+/** What the inspiration card on the Overview shows. `mix` lets the agent choose. */
+export const INSPIRATION_KINDS = [
+  'affirmation',
+  'quote',
+  'money',
+  'health',
+  'reflection',
+  'gita',
+  'mix'
+];

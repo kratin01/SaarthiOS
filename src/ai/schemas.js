@@ -12,7 +12,8 @@ import {
   BODY_GOALS,
   RANGES,
   BILLING_CYCLES,
-  SUBSCRIPTION_CATEGORIES
+  SUBSCRIPTION_CATEGORIES,
+  INSPIRATION_KINDS
 } from '../config/constants.js';
 import { isMonthRange } from '../utils/dates.js';
 
@@ -277,6 +278,35 @@ export const tipsSchema = z.object({
       detail: text(400)
     })
   )
+});
+
+/** The insight agent may ask for one web search; anything malformed means no search. */
+const searchRequest = z.object({ query: z.string().trim().min(3).max(200) }).nullable().catch(null);
+
+/** 1-based number of the web result an answer leans on, or null. */
+const sourceNumber = z.coerce.number().int().min(1).max(10).nullable().catch(null);
+
+/** The AI insights on the Overview. */
+export const overviewInsightsSchema = z.object({
+  search: searchRequest,
+  insights: list(
+    z.object({
+      tone: z.enum(['good', 'neutral', 'warn', 'alert']).catch('neutral'),
+      text: z.string().trim().min(1).max(400),
+      source: sourceNumber
+    })
+  ).transform((items) => items.slice(0, 3))
+});
+
+/** The inspiration card on the Overview. */
+export const inspirationSchema = z.object({
+  search: searchRequest,
+  kind: z.enum(INSPIRATION_KINDS).catch('affirmation'),
+  text: z.string().trim().min(1).max(400),
+  author: text(120),
+  original: text(400),
+  meaning: text(400),
+  source: sourceNumber
 });
 
 /**
