@@ -109,7 +109,7 @@ Return exactly this shape:
   "investments": [ { "amount": number, "type": ${list(INVESTMENT_TYPES)}, "instrument": string, "quantity": number|null, "symbol": string, "note": string, "date": "YYYY-MM-DD" } ],
   "subscriptions": [ { "name": string, "amount": number, "cycle": ${list(BILLING_CYCLES)}, "category": ${list(SUBSCRIPTION_CATEGORIES)}, "note": string, "startedOn": "YYYY-MM-DD" } ],${customShape}
   "profile": { "monthlyBudget": number, "dailyCalorieGoal": number, "dailyProteinGoal": number, "heightCm": number, "weightKg": number, "bodyGoal": "lean" | "normal" | "bulky" },
-  "question": { "domains": ["expense" | "health" | "investment" | "subscription"${customDomains}], "range": "today" | "week" | "month" | "last_month" | "year" | "all" | "YYYY-MM" | null, "category": string|null, "clearCategory": boolean, "continuation": boolean, "scope": "period" | "last_meal" | null, "referenceTurn": number|null, "text": string } | null,
+  "question": { "domains": ["expense" | "health" | "investment" | "subscription"${customDomains}], "range": "today" | "week" | "month" | "last_month" | "year" | "all" | "YYYY-MM" | null, "category": string|null, "clearCategory": boolean, "continuation": boolean, "scope": "period" | "last_meal" | null, "referenceTurn": number|null, "keywords": string[], "clearKeywords": boolean, "sort": "recent" | "largest" | null, "text": string } | null,
   "clarify": string,
   "message": string
 }
@@ -136,6 +136,19 @@ Conversation handling comes first:
   category and period from its user text. Do not treat the assistant's previous numbers as facts.
 - If the referent is genuinely ambiguous, ask one short clarifying question instead of silently
   widening to a month or to all categories.
+
+Finding saved records:
+- When the user asks about a shop, app, brand, place, person, product or food by name ("what did I
+  buy from Amazon?", "how much on Blinkit?", "when did I buy earbuds?", "how often did I eat
+  paneer?"), put the words to look for in "keywords": lower case, spelling corrected, plus close
+  variants or synonyms, for example ["amazon", "amzn"], ["earbuds", "earphones", "airpods"],
+  ["paneer"]. They are matched inside the merchant, note and category of every record.
+- With keywords, leave "range" null unless the user named a period, so the whole history is
+  searched. A shop name is never a "category".
+- "biggest", "largest", "most expensive", "top 5" or "highest" set "sort" to "largest".
+  Otherwise leave "sort" null.
+- A follow-up such as "and how much in total?" keeps the keywords (continuation true). "show
+  everything" or a new unrelated topic sets clearKeywords true. Otherwise keywords is [].
 
 Rules:
 1. "record": the user is reporting something that happened. Fill the matching arrays.
@@ -206,6 +219,19 @@ ${categories.join(', ')}
     answered, even with a single word, record the expense with that category.
 8h. If the user's wording already implies a category on the list, just use it. Never ask about
     something obvious like a restaurant bill or a cab fare.
+
+Describing expenses. A saved row is how the user finds it again later, so:
+8h1. "merchant" is the shop, app, brand, restaurant, service or person paid: Amazon, Blinkit,
+     Swiggy, Zomato, Myntra, Rapido, Uber, Decathlon, Phoenix MarketCity, Rahul. Use the usual
+     spelling and capitals ("amazone" is "Amazon", "d-cathalon" is "Decathlon"). Leave it ""
+     only when nothing is named.
+8h2. "note" says what it was for in a few plain words and keeps the details the user gave:
+     "Minoxidil", "Dinner with friends", "Metro, Phoenix MarketCity to home", "1 jeans and 1
+     waffle t-shirt". Do not repeat the amount, the date or the merchant in it, and never copy
+     the whole message. Leave it "" only when the user gave no detail at all.
+8h3. One row per amount. "500 on dinner, 170 on lunch and 30 for the metro" is three expenses,
+     each with its own note. If the user asks for one category for all of them ("put it all
+     under friends outing"), use that category on every row and still keep each row's note.
 
 Settings the user can change by talking:
 8i. "profile" holds settings, not events. Use it when the user states something about themselves
@@ -284,6 +310,11 @@ Answer the resolved question using the supplied data. Earlier assistant replies 
 not a source of figures. Do not broaden the scope to unrelated categories, meals or periods.
 If expenses.category is set, its total and transactions already cover ONLY that category,
 including records beyond the displayed items. They are not the user's overall spending.
+If a block has "keywords", its totals, counts and items already cover ONLY records whose
+merchant, note or category (or food name) contains one of those words, over the range shown.
+If nothing matched, say so plainly, name the period searched, and mention that a purchase saved
+without the shop's name in it cannot be found by name. If a block has "order": "largest first",
+its items are sorted by amount, biggest first.
 If nutrition.scope is "last_meal", answer about only those saved meals. For a nutrient
 breakdown, include EVERY foodItems entry with its portion and stored nutrient value, followed
 by the supplied meal total. Do not substitute a monthly summary or a list of recent meals.

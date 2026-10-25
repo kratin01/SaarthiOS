@@ -22,6 +22,8 @@ export const analystAgent = {
       domains,
       range,
       category: question.category,
+      keywords: question.keywords ?? [],
+      sort: question.sort ?? 'recent',
       scope: question.scope,
       mealRunId: question.mealRunId,
       customDefinitions
@@ -44,6 +46,8 @@ export const analystAgent = {
         domains,
         range: question.scope === 'last_meal' ? null : range,
         category: question.category ?? null,
+        keywords: question.keywords ?? [],
+        sort: question.sort ?? 'recent',
         scope: question.scope ?? 'period'
       })}\n\nData:\n${JSON.stringify(facts, null, 2)}`,
       // A table of rows needs far more room than a two sentence summary, and a

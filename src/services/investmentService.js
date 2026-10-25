@@ -3,8 +3,11 @@ import { Investment } from '../models/Investment.js';
 import { ApiError } from '../utils/ApiError.js';
 import { toObjectId } from '../utils/ids.js';
 import { resolveRange } from '../utils/dates.js';
+import { keywordFilter } from '../utils/search.js';
 import { QUANTITY_TYPES } from '../config/constants.js';
 import { getQuotes, resolveSymbol, isValidSymbol } from './marketService.js';
+
+const SEARCH_FIELDS = ['instrument', 'note', 'type'];
 
 export function createInvestment(userId, input, { source = 'manual', agentRun = null } = {}) {
   return Investment.create({
@@ -25,13 +28,23 @@ export function createInvestments(userId, inputs, options) {
   return Promise.all(inputs.map((input) => createInvestment(userId, input, options)));
 }
 
-export async function listInvestments(userId, { range = 'year', type, limit = 50, offset = 0 } = {}) {
+export async function listInvestments(
+  userId,
+  { range = 'year', type, keywords, sort = 'recent', limit = 50, offset = 0 } = {}
+) {
   const { from, to } = resolveRange(range);
-  const filter = { user: userId, date: { $gte: from, $lte: to } };
+  const filter = {
+    user: userId,
+    date: { $gte: from, $lte: to },
+    ...keywordFilter(SEARCH_FIELDS, keywords)
+  };
   if (type) filter.type = type;
+  const order = sort === 'largest'
+    ? { amount: -1, date: -1, _id: -1 }
+    : { date: -1, createdAt: -1, _id: -1 };
 
   const [items, total] = await Promise.all([
-    Investment.find(filter).sort({ date: -1, createdAt: -1, _id: -1 }).skip(offset).limit(limit).lean(),
+    Investment.find(filter).sort(order).skip(offset).limit(limit).lean(),
     Investment.countDocuments(filter)
   ]);
 
@@ -173,11 +186,17 @@ const emptyTotals = (currency) => ({
 const round = (n) => Math.round(n * 100) / 100;
 
 /** Contributed total, allocation by type and a month-by-month series. */
-export async function summariseInvestments(userId, range = 'year') {
+export async function summariseInvestments(userId, range = 'year', { keywords } = {}) {
   const { from, to, label } = resolveRange(range);
 
   const [rows] = await Investment.aggregate([
-    { $match: { user: toObjectId(userId), date: { $gte: from, $lte: to } } },
+    {
+      $match: {
+        user: toObjectId(userId),
+        date: { $gte: from, $lte: to },
+        ...keywordFilter(SEARCH_FIELDS, keywords)
+      }
+    },
     {
       $facet: {
         total: [{ $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } }],

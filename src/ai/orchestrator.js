@@ -251,7 +251,7 @@ function composeSaveReply(outcomes, currency) {
     if (!result.created.length) continue;
 
     if (agent.name === 'expense') {
-      parts.push(`${result.created.length === 1 ? 'Expense' : 'Expenses'} of ${money(result.total, currency)} recorded.`);
+      parts.push(describeExpenses(result.created, currency));
     }
     if (agent.name === 'health') {
       // Say the portion out loud — an estimate is only honest if you can see
@@ -294,8 +294,40 @@ function composeSaveReply(outcomes, currency) {
   }
 
   if (!parts.length) return 'I understood the message but nothing was valid enough to save.';
-  return parts.join(' ');
+  // A bullet list needs its own paragraph, or the next sentence lands on its last line.
+  return parts.join(parts.some((part) => part.includes('\n')) ? '\n\n' : ' ');
 }
+
+/**
+ * Reads back what was actually stored, so a wrong merchant, note or category
+ * is obvious straight away rather than at the end of the month.
+ */
+export function describeExpenses(rows, currency) {
+  if (rows.length === 1) {
+    const [row] = rows;
+    const what = [
+      row.note ? `for ${row.note}` : '',
+      row.merchant ? `${row.note ? 'from' : 'at'} ${row.merchant}` : ''
+    ].filter(Boolean);
+    return ['Saved', money(row.amount, currency), ...what, `under ${row.category}.`].join(' ');
+  }
+
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  const categories = [...new Set(rows.map((row) => row.category))];
+  const shared = categories.length === 1 ? ` under ${categories[0]}` : '';
+  const lines = rows.map((row) => {
+    const name = row.note && row.merchant
+      ? `${row.note} (${row.merchant})`
+      : row.note || row.merchant || 'Expense';
+    const category = shared ? '' : `, ${row.category}`;
+    return `- ${capitalise(name)}: ${money(row.amount, currency)}${category}`;
+  });
+
+  const heading = `Saved ${rows.length} expenses${shared}, ${money(total, currency)} in total:`;
+  return [heading, ...lines].join('\n');
+}
+
+const capitalise = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
 const money = (amount, currency) =>
   `${currency} ${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(amount)}`;

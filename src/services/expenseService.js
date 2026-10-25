@@ -7,6 +7,7 @@ import { User } from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
 import { toObjectId } from '../utils/ids.js';
 import { resolveRange, dayBuckets } from '../utils/dates.js';
+import { keywordFilter } from '../utils/search.js';
 import {
   MAX_CUSTOM_CATEGORIES,
   categoriesFor,
@@ -63,16 +64,30 @@ export function createExpenses(userId, inputs, options) {
   return Promise.all(inputs.map((input) => createExpense(userId, input, options)));
 }
 
+/** Where a keyword search looks on an expense. */
+const SEARCH_FIELDS = ['merchant', 'note', 'category'];
+
 /** Returns one page of rows plus the true total, so the UI can offer "load more". */
-export async function listExpenses(userId, { range = 'month', category, limit = 50, offset = 0 } = {}) {
+export async function listExpenses(
+  userId,
+  { range = 'month', category, keywords, sort = 'recent', limit = 50, offset = 0 } = {}
+) {
   const { from, to } = resolveRange(range);
-  const filter = { user: userId, date: { $gte: from, $lte: to } };
+  const filter = {
+    user: userId,
+    date: { $gte: from, $lte: to },
+    ...keywordFilter(SEARCH_FIELDS, keywords)
+  };
   if (category) filter.category = category;
 
+  // `_id` breaks ties: rows sharing a date have no stable order otherwise, and
+  // `skip` would then show the same row on two pages and hide another.
+  const order = sort === 'largest'
+    ? { amount: -1, date: -1, _id: -1 }
+    : { date: -1, createdAt: -1, _id: -1 };
+
   const [items, total] = await Promise.all([
-    // `_id` breaks ties: rows sharing a date have no stable order otherwise, and
-    // `skip` would then show the same row on two pages and hide another.
-    Expense.find(filter).sort({ date: -1, createdAt: -1, _id: -1 }).skip(offset).limit(limit).lean(),
+    Expense.find(filter).sort(order).skip(offset).limit(limit).lean(),
     Expense.countDocuments(filter)
   ]);
 
@@ -107,9 +122,13 @@ export async function updateExpense(userId, id, input) {
 }
 
 /** Totals + per-category split + a daily series for the chart. */
-export async function summariseExpenses(userId, range = 'month', { category } = {}) {
+export async function summariseExpenses(userId, range = 'month', { category, keywords } = {}) {
   const { from, to, label } = resolveRange(range);
-  const filter = { user: toObjectId(userId), date: { $gte: from, $lte: to } };
+  const filter = {
+    user: toObjectId(userId),
+    date: { $gte: from, $lte: to },
+    ...keywordFilter(SEARCH_FIELDS, keywords)
+  };
   if (category) filter.category = category;
 
   const [rows] = await Expense.aggregate([

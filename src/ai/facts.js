@@ -22,9 +22,15 @@ import { toDateKey } from '../utils/dates.js';
 const ROW_LIMIT = 40;
 
 export async function collectFacts({
-  userId, domains, range, category, scope = 'period', mealRunId, customDefinitions = []
+  userId, domains, range, category, keywords = [], sort = 'recent', scope = 'period', mealRunId,
+  customDefinitions = []
 }) {
   const facts = {};
+  // Tells the analyst the rows are already filtered or reordered, so it does not filter again.
+  const searched = {
+    ...(keywords.length ? { keywords } : {}),
+    ...(sort === 'largest' ? { order: 'largest first' } : {})
+  };
 
   if (scope === 'last_meal') {
     const meals = mealRunId ? await healthService.mealsForRun(userId, mealRunId) : [];
@@ -47,12 +53,13 @@ export async function collectFacts({
 
   if (domains.includes('expense')) {
     const [summary, rows] = await Promise.all([
-      expenseService.summariseExpenses(userId, range, { category }),
-      expenseService.listExpenses(userId, { range, category, limit: ROW_LIMIT })
+      expenseService.summariseExpenses(userId, range, { category, keywords }),
+      expenseService.listExpenses(userId, { range, category, keywords, sort, limit: ROW_LIMIT })
     ]);
     facts.expenses = {
       range: summary.range,
       category: category ?? null,
+      ...searched,
       total: summary.total,
       transactions: summary.count,
       byCategory: summary.byCategory,
@@ -71,11 +78,12 @@ export async function collectFacts({
 
   if (domains.includes('health')) {
     const [summary, rows] = await Promise.all([
-      healthService.summariseNutrition(userId, range),
-      healthService.listMeals(userId, { range, limit: ROW_LIMIT })
+      healthService.summariseNutrition(userId, range, { keywords }),
+      healthService.listMeals(userId, { range, keywords, sort, limit: ROW_LIMIT })
     ]);
     facts.nutrition = {
       range: summary.range,
+      ...searched,
       totals: summary.totals,
       mealsLogged: summary.mealCount,
       daysLogged: summary.loggedDays,
@@ -90,11 +98,12 @@ export async function collectFacts({
 
   if (domains.includes('investment')) {
     const [summary, rows] = await Promise.all([
-      investmentService.summariseInvestments(userId, range),
-      investmentService.listInvestments(userId, { range, limit: ROW_LIMIT })
+      investmentService.summariseInvestments(userId, range, { keywords }),
+      investmentService.listInvestments(userId, { range, keywords, sort, limit: ROW_LIMIT })
     ]);
     facts.investments = {
       range: summary.range,
+      ...searched,
       total: summary.total,
       contributions: summary.count,
       byType: summary.byType,

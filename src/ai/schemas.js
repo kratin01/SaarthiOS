@@ -159,6 +159,20 @@ export const questionSchema = z.object({
   continuation: z.boolean().catch(false),
   scope: z.enum(['period', 'last_meal']).nullish(),
   referenceTurn: z.number().int().positive().nullish(),
+  /** Words to find in merchant, note, item or instrument names, e.g. ["amazon", "amzn"]. */
+  keywords: z
+    .array(z.string())
+    .nullish()
+    .catch(null)
+    .transform((words) => [
+      ...new Set(
+        (words ?? [])
+          .map((word) => word.trim().toLowerCase().slice(0, 40))
+          .filter((word) => word.length >= 2)
+      )
+    ].slice(0, 6)),
+  clearKeywords: z.boolean().catch(false),
+  sort: z.enum(['recent', 'largest']).nullish().catch(null),
   text: text(600)
 });
 

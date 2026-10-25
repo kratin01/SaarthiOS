@@ -38,10 +38,21 @@ export function resolveQuestion(question, history, message, categories = []) {
     }
   }
 
+  const keywords = scope === 'last_meal' || question.clearKeywords
+    ? []
+    : question.keywords?.length
+      ? question.keywords
+      : sameDomain ? inherited.keywords ?? [] : [];
+
   return {
     domains: scope === 'last_meal' ? ['health'] : domains,
-    range: question.range ?? (sameDomain ? inherited.range : null) ?? 'month',
+    // A search with no period named looks through everything, not just this month.
+    range: question.range
+      ?? (sameDomain ? inherited.range : null)
+      ?? (keywords.length ? 'all' : 'month'),
     category: scope === 'last_meal' ? null : category || null,
+    keywords,
+    sort: question.sort ?? (sameDomain ? inherited.sort : null) ?? 'recent',
     scope,
     mealRunId,
     text: question.text || message

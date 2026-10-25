@@ -21,6 +21,8 @@ const queryContextSchema = new mongoose.Schema(
     domains: [String],
     range: String,
     category: { type: String, default: null },
+    keywords: { type: [String], default: undefined },
+    sort: { type: String, enum: ['recent', 'largest'], default: 'recent' },
     scope: { type: String, enum: ['period', 'last_meal'], default: 'period' },
     mealRunId: { type: mongoose.Schema.Types.ObjectId, ref: 'AgentRun', default: null },
     text: { type: String, maxlength: 2000 }

@@ -3,6 +3,9 @@ import { Meal } from '../models/Meal.js';
 import { ApiError } from '../utils/ApiError.js';
 import { toObjectId } from '../utils/ids.js';
 import { resolveRange, dayBuckets } from '../utils/dates.js';
+import { keywordFilter } from '../utils/search.js';
+
+const SEARCH_FIELDS = ['items.name', 'note', 'mealType'];
 
 export function createMeal(userId, input, { source = 'manual', agentRun = null } = {}) {
   return Meal.create({
@@ -26,12 +29,22 @@ export function mealsForRun(userId, agentRunId) {
     .lean();
 }
 
-export async function listMeals(userId, { range = 'week', limit = 50, offset = 0 } = {}) {
+export async function listMeals(
+  userId,
+  { range = 'week', keywords, sort = 'recent', limit = 50, offset = 0 } = {}
+) {
   const { from, to } = resolveRange(range);
-  const filter = { user: userId, date: { $gte: from, $lte: to } };
+  const filter = {
+    user: userId,
+    date: { $gte: from, $lte: to },
+    ...keywordFilter(SEARCH_FIELDS, keywords)
+  };
+  const order = sort === 'largest'
+    ? { 'totals.calories': -1, date: -1, _id: -1 }
+    : { date: -1, createdAt: -1, _id: -1 };
 
   const [items, total] = await Promise.all([
-    Meal.find(filter).sort({ date: -1, createdAt: -1, _id: -1 }).skip(offset).limit(limit).lean(),
+    Meal.find(filter).sort(order).skip(offset).limit(limit).lean(),
     Meal.countDocuments(filter)
   ]);
 
@@ -63,11 +76,17 @@ export async function updateMeal(userId, id, input) {
 }
 
 /** Daily calorie series, macro split and per-meal-type breakdown. */
-export async function summariseNutrition(userId, range = 'week') {
+export async function summariseNutrition(userId, range = 'week', { keywords } = {}) {
   const { from, to, label } = resolveRange(range);
 
   const [rows] = await Meal.aggregate([
-    { $match: { user: toObjectId(userId), date: { $gte: from, $lte: to } } },
+    {
+      $match: {
+        user: toObjectId(userId),
+        date: { $gte: from, $lte: to },
+        ...keywordFilter(SEARCH_FIELDS, keywords)
+      }
+    },
     {
       $facet: {
         totals: [
