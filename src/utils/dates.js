@@ -27,9 +27,18 @@ export const addDays = (d, days) => {
   return x;
 };
 
+/**
+ * Same day in another month, clamped to that month's last day. Plain `setMonth`
+ * overflows: 31 October minus one month became 1 October, so "last month" on
+ * the 31st showed this month.
+ */
 export const addMonths = (d, months) => {
   const x = new Date(d);
+  const day = x.getDate();
+  x.setDate(1);
   x.setMonth(x.getMonth() + months);
+  const lastDay = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate();
+  x.setDate(Math.min(day, lastDay));
   return x;
 };
 
