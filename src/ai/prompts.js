@@ -109,7 +109,7 @@ Return exactly this shape:
   "investments": [ { "amount": number, "type": ${list(INVESTMENT_TYPES)}, "instrument": string, "quantity": number|null, "symbol": string, "note": string, "date": "YYYY-MM-DD" } ],
   "subscriptions": [ { "name": string, "amount": number, "cycle": ${list(BILLING_CYCLES)}, "category": ${list(SUBSCRIPTION_CATEGORIES)}, "note": string, "startedOn": "YYYY-MM-DD" } ],${customShape}
   "profile": { "monthlyBudget": number, "dailyCalorieGoal": number, "dailyProteinGoal": number, "heightCm": number, "weightKg": number, "bodyGoal": "lean" | "normal" | "bulky" },
-  "question": { "domains": ["expense" | "health" | "investment" | "subscription"${customDomains}], "range": "today" | "week" | "month" | "last_month" | "year" | "all" | "YYYY-MM" | null, "category": string|null, "clearCategory": boolean, "continuation": boolean, "scope": "period" | "last_meal" | null, "referenceTurn": number|null, "keywords": string[], "clearKeywords": boolean, "sort": "recent" | "largest" | null, "text": string } | null,
+  "question": { "domains": ["expense" | "health" | "investment" | "subscription"${customDomains}], "range": "today" | "week" | "month" | "last_month" | "year" | "all" | "YYYY-MM" | null, "category": string|null, "clearCategory": boolean, "continuation": boolean, "scope": "period" | "last_meal" | null, "referenceTurn": number|null, "keywords": string[], "clearKeywords": boolean, "amount": number|null, "sort": "recent" | "largest" | null, "text": string } | null,
   "clarify": string,
   "message": string
 }
@@ -143,12 +143,18 @@ Finding saved records:
   paneer?"), put the words to look for in "keywords": lower case, spelling corrected, plus close
   variants or synonyms, for example ["amazon", "amzn"], ["earbuds", "earphones", "airpods"],
   ["paneer"]. They are matched inside the merchant, note and category of every record.
+  Spaces and hyphens inside a word do not matter: "haircut" also finds "Hair cutting". Keep
+  the words specific: "hair" alone would also find hair oil.
 - With keywords, leave "range" null unless the user named a period, so the whole history is
   searched. A shop name is never a "category".
 - "biggest", "largest", "most expensive", "top 5" or "highest" set "sort" to "largest".
   Otherwise leave "sort" null.
 - A follow-up such as "and how much in total?" keeps the keywords (continuation true). "show
   everything" or a new unrelated topic sets clearKeywords true. Otherwise keywords is [].
+- An amount right after a question about past records is a search hint, never a new expense:
+  "it was 250", "the 1500 one", "paid around 936" mean intent "query", continuation true,
+  "amount" set to that number. If the previous answer found nothing, also set clearKeywords
+  true so the amount alone is searched. Otherwise "amount" is null.
 
 Rules:
 1. "record": the user is reporting something that happened. Fill the matching arrays.
@@ -312,9 +318,15 @@ If expenses.category is set, its total and transactions already cover ONLY that 
 including records beyond the displayed items. They are not the user's overall spending.
 If a block has "keywords", its totals, counts and items already cover ONLY records whose
 merchant, note or category (or food name) contains one of those words, over the range shown.
-If nothing matched, say so plainly, name the period searched, and mention that a purchase saved
-without the shop's name in it cannot be found by name. If a block has "order": "largest first",
-its items are sorted by amount, biggest first.
+If a block has "amount", it covers ONLY records of exactly that amount.
+If a block has "closeCandidates", the words matched nothing exactly. closeCandidates lists every
+different way the user described a record in that range (with how many times, the total, the
+last date and amount). Pick the entries that clearly mean what the user asked about even when
+worded differently ("Hair cutting" or "salon" for a haircut, "cab" for Uber, Hinglish words such
+as "baal katwaye"), answer from them and say you matched them by meaning. Use only entries that
+clearly fit. If none fit, say plainly that nothing was found, name the period searched, and
+suggest giving the amount or the date. If a block has "order": "largest first", its items are
+sorted by amount, biggest first.
 If nutrition.scope is "last_meal", answer about only those saved meals. For a nutrient
 breakdown, include EVERY foodItems entry with its portion and stored nutrient value, followed
 by the supplied meal total. Do not substitute a monthly summary or a list of recent meals.
@@ -339,7 +351,8 @@ Listing things:
      | --- | --- | --- | --- |
      | 3 Sept | Rapido | Transport | ${currency} 180 |
 7. Pick only the columns the question asked about. Keep it to four or fewer, and leave out a
-   column when every row would be empty.
+   column when every row would be empty. Include Note whenever a row has one, because it says
+   what was actually bought.
 8. Filter "items" to what was asked. A question about transport lists only transport rows.
 9. "itemsShown" and "itemsTotal" tell you if the list was cut short. When they differ, say so
    after the table, for example "Showing the 40 most recent of 112."

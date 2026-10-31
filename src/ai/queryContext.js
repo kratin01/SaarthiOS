@@ -43,15 +43,19 @@ export function resolveQuestion(question, history, message, categories = []) {
     : question.keywords?.length
       ? question.keywords
       : sameDomain ? inherited.keywords ?? [] : [];
+  const amount = scope === 'last_meal'
+    ? null
+    : question.amount ?? (sameDomain && !question.clearKeywords ? inherited.amount ?? null : null);
 
   return {
     domains: scope === 'last_meal' ? ['health'] : domains,
     // A search with no period named looks through everything, not just this month.
     range: question.range
       ?? (sameDomain ? inherited.range : null)
-      ?? (keywords.length ? 'all' : 'month'),
+      ?? (keywords.length || amount ? 'all' : 'month'),
     category: scope === 'last_meal' ? null : category || null,
     keywords,
+    amount,
     sort: question.sort ?? (sameDomain ? inherited.sort : null) ?? 'recent',
     scope,
     mealRunId,

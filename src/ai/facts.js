@@ -22,13 +22,14 @@ import { toDateKey } from '../utils/dates.js';
 const ROW_LIMIT = 40;
 
 export async function collectFacts({
-  userId, domains, range, category, keywords = [], sort = 'recent', scope = 'period', mealRunId,
-  customDefinitions = []
+  userId, domains, range, category, keywords = [], amount = null, sort = 'recent', scope = 'period',
+  mealRunId, customDefinitions = []
 }) {
   const facts = {};
   // Tells the analyst the rows are already filtered or reordered, so it does not filter again.
   const searched = {
     ...(keywords.length ? { keywords } : {}),
+    ...(amount ? { amount } : {}),
     ...(sort === 'largest' ? { order: 'largest first' } : {})
   };
 
@@ -53,8 +54,10 @@ export async function collectFacts({
 
   if (domains.includes('expense')) {
     const [summary, rows] = await Promise.all([
-      expenseService.summariseExpenses(userId, range, { category, keywords }),
-      expenseService.listExpenses(userId, { range, category, keywords, sort, limit: ROW_LIMIT })
+      expenseService.summariseExpenses(userId, range, { category, keywords, amount }),
+      expenseService.listExpenses(userId, {
+        range, category, keywords, amount, sort, limit: ROW_LIMIT
+      })
     ]);
     facts.expenses = {
       range: summary.range,
@@ -74,6 +77,13 @@ export async function collectFacts({
       itemsShown: rows.items.length,
       itemsTotal: rows.total
     };
+    // Words can miss what meaning finds ("haircut" vs "Hair cutting"), so the analyst gets
+    // every distinct description to choose from, but only when the words found nothing.
+    if (keywords.length && !rows.total) {
+      facts.expenses.closeCandidates = await expenseService.describeSpending(userId, range, {
+        category, amount
+      });
+    }
   }
 
   if (domains.includes('health')) {
@@ -94,12 +104,15 @@ export async function collectFacts({
       itemsShown: rows.items.length,
       itemsTotal: rows.total
     };
+    if (keywords.length && !rows.total) {
+      facts.nutrition.closeCandidates = await healthService.foodNames(userId, range);
+    }
   }
 
   if (domains.includes('investment')) {
     const [summary, rows] = await Promise.all([
-      investmentService.summariseInvestments(userId, range, { keywords }),
-      investmentService.listInvestments(userId, { range, keywords, sort, limit: ROW_LIMIT })
+      investmentService.summariseInvestments(userId, range, { keywords, amount }),
+      investmentService.listInvestments(userId, { range, keywords, amount, sort, limit: ROW_LIMIT })
     ]);
     facts.investments = {
       range: summary.range,

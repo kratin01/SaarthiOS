@@ -172,6 +172,8 @@ export const questionSchema = z.object({
       )
     ].slice(0, 6)),
   clearKeywords: z.boolean().catch(false),
+  /** An exact amount to look for, from a hint such as "it was 250". */
+  amount: z.coerce.number().positive().max(100_000_000).nullable().catch(null),
   sort: z.enum(['recent', 'largest']).nullish().catch(null),
   text: text(600)
 });

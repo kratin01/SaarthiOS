@@ -23,6 +23,7 @@ export const analystAgent = {
       range,
       category: question.category,
       keywords: question.keywords ?? [],
+      amount: question.amount ?? null,
       sort: question.sort ?? 'recent',
       scope: question.scope,
       mealRunId: question.mealRunId,
@@ -47,6 +48,7 @@ export const analystAgent = {
         range: question.scope === 'last_meal' ? null : range,
         category: question.category ?? null,
         keywords: question.keywords ?? [],
+        amount: question.amount ?? null,
         sort: question.sort ?? 'recent',
         scope: question.scope ?? 'period'
       })}\n\nData:\n${JSON.stringify(facts, null, 2)}`,

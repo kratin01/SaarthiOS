@@ -15,6 +15,7 @@ const { resolveQuestion } = await import('./queryContext.js');
 const { collectFacts } = await import('./facts.js');
 const { describeExpenses } = await import('./orchestrator.js');
 const { buildPlannerPrompt } = await import('./prompts.js');
+const { keywordFilter } = await import('../utils/search.js');
 
 const userId = '000000000000000000000001';
 
@@ -89,13 +90,80 @@ test('searches match merchant, note and category literally and can sort by amoun
   assert.deepEqual(listFilter.$or, match.$or);
   const merchant = match.$or.find((condition) => condition.merchant)?.merchant;
   assert.ok(merchant.test('Amazon India'));
-  const literal = match.$or.find((condition) => condition.note?.source === 'c\\+\\+');
+  const literal = match.$or.find((condition) => condition.note?.test('c++'));
   assert.ok(literal.note.test('c++ book') && !literal.note.test('cc book'));
   assert.deepEqual(order, { amount: -1, date: -1, _id: -1 });
   assert.deepEqual(expenses.keywords, ['amazon', 'c++']);
   assert.equal(expenses.order, 'largest first');
   assert.equal(expenses.total, 2400);
   assert.equal(expenses.items[0].merchant, 'Amazon');
+  assert.equal(expenses.closeCandidates, undefined);
+});
+
+test('spaces and hyphens inside a word do not stop a match', () => {
+  const [haircut] = keywordFilter(['note'], ['haircut']).$or;
+  for (const note of ['Hair cutting', 'hair-cut', 'HAIRCUT at salon']) assert.ok(haircut.note.test(note));
+  assert.ok(!haircut.note.test('hair oil'));
+  const [spaced] = keywordFilter(['note'], ['hair cut']).$or;
+  assert.ok(spaced.note.test('Haircut'));
+  assert.deepEqual(keywordFilter(['note'], ['--']), {});
+});
+
+test('when words find nothing the analyst gets every description to match by meaning', async () => {
+  let candidatePipeline;
+  mock.method(Expense, 'aggregate', async (pipeline) => {
+    if (pipeline[1]?.$facet) return [{ total: [], byCategory: [], byDay: [], topMerchants: [] }];
+    candidatePipeline = pipeline;
+    return [{
+      _id: { note: 'hair cutting', merchant: '', category: 'other' },
+      note: 'Hair cutting', merchant: '', times: 1, total: 250,
+      lastDate: new Date(2026, 8, 25, 12), lastAmount: 250
+    }];
+  });
+  mock.method(Expense, 'countDocuments', async () => 0);
+  mock.method(Expense, 'find', () => {
+    const query = { sort: () => query, skip: () => query, limit: () => query, lean: async () => [] };
+    return query;
+  });
+
+  const { expenses } = await collectFacts({
+    userId, domains: ['expense'], range: 'all', keywords: ['salon', 'barber']
+  });
+
+  assert.equal(candidatePipeline[0].$match.$or, undefined);
+  assert.deepEqual(expenses.closeCandidates, [{
+    note: 'Hair cutting', merchant: '', category: 'other', times: 1, total: 250,
+    lastDate: '2026-09-25', lastAmount: 250
+  }]);
+});
+
+test('an amount hint after a failed search narrows by amount instead of recording', async () => {
+  const failed = resolveQuestion(
+    questionSchema.parse({ domains: ['expense'], keywords: ['haircut'] }), [], 'last haircut?'
+  );
+  const hint = resolveQuestion(
+    questionSchema.parse({ continuation: true, clearKeywords: true, amount: '250' }),
+    [{ intent: 'query', queryContext: failed }],
+    'It was 250/-'
+  );
+  assert.deepEqual(hint.keywords, []);
+  assert.equal(hint.amount, 250);
+  assert.equal(hint.range, 'all');
+  assert.equal(questionSchema.parse({ amount: null }).amount, null);
+
+  let filter;
+  mock.method(Expense, 'aggregate', async (pipeline) => {
+    filter = pipeline[0].$match;
+    return [{ total: [{ amount: 250, count: 1 }], byCategory: [], byDay: [], topMerchants: [] }];
+  });
+  mock.method(Expense, 'countDocuments', async () => 1);
+  mock.method(Expense, 'find', () => {
+    const query = { sort: () => query, skip: () => query, limit: () => query, lean: async () => [] };
+    return query;
+  });
+  const { expenses } = await collectFacts({ userId, domains: ['expense'], range: 'all', amount: 250 });
+  assert.equal(filter.amount, 250);
+  assert.equal(expenses.amount, 250);
 });
 
 test('saved expenses are read back with what, where and category', () => {
@@ -132,4 +200,5 @@ test('the planner is told how to search and how to describe what it records', ()
   assert.match(prompt, /"keywords": string\[\]/);
   assert.match(prompt, /A shop name is never a "category"/);
   assert.match(prompt, /One row per amount/);
+  assert.match(prompt, /search hint, never a new expense/);
 });

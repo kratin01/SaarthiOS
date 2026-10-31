@@ -30,7 +30,7 @@ export function createInvestments(userId, inputs, options) {
 
 export async function listInvestments(
   userId,
-  { range = 'year', type, keywords, sort = 'recent', limit = 50, offset = 0 } = {}
+  { range = 'year', type, keywords, amount, sort = 'recent', limit = 50, offset = 0 } = {}
 ) {
   const { from, to } = resolveRange(range);
   const filter = {
@@ -39,6 +39,7 @@ export async function listInvestments(
     ...keywordFilter(SEARCH_FIELDS, keywords)
   };
   if (type) filter.type = type;
+  if (amount) filter.amount = amount;
   const order = sort === 'largest'
     ? { amount: -1, date: -1, _id: -1 }
     : { date: -1, createdAt: -1, _id: -1 };
@@ -186,7 +187,7 @@ const emptyTotals = (currency) => ({
 const round = (n) => Math.round(n * 100) / 100;
 
 /** Contributed total, allocation by type and a month-by-month series. */
-export async function summariseInvestments(userId, range = 'year', { keywords } = {}) {
+export async function summariseInvestments(userId, range = 'year', { keywords, amount } = {}) {
   const { from, to, label } = resolveRange(range);
 
   const [rows] = await Investment.aggregate([
@@ -194,7 +195,8 @@ export async function summariseInvestments(userId, range = 'year', { keywords } 
       $match: {
         user: toObjectId(userId),
         date: { $gte: from, $lte: to },
-        ...keywordFilter(SEARCH_FIELDS, keywords)
+        ...keywordFilter(SEARCH_FIELDS, keywords),
+        ...(amount ? { amount } : {})
       }
     },
     {

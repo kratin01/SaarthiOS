@@ -2,7 +2,7 @@
 import { Meal } from '../models/Meal.js';
 import { ApiError } from '../utils/ApiError.js';
 import { toObjectId } from '../utils/ids.js';
-import { resolveRange, dayBuckets } from '../utils/dates.js';
+import { resolveRange, dayBuckets, toDateKey } from '../utils/dates.js';
 import { keywordFilter } from '../utils/search.js';
 
 const SEARCH_FIELDS = ['items.name', 'note', 'mealType'];
@@ -73,6 +73,34 @@ export async function updateMeal(userId, id, input) {
 
   await meal.save();
   return meal;
+}
+
+/** Every different food this user has logged, newest first, for matching by meaning. */
+export async function foodNames(userId, range = 'all', { limit = 150 } = {}) {
+  const { from, to } = resolveRange(range);
+  const rows = await Meal.aggregate([
+    { $match: { user: toObjectId(userId), date: { $gte: from, $lte: to } } },
+    { $sort: { date: -1, _id: -1 } },
+    { $unwind: '$items' },
+    {
+      $group: {
+        _id: { $toLower: '$items.name' },
+        name: { $first: '$items.name' },
+        times: { $sum: 1 },
+        lastDate: { $first: '$date' },
+        lastQuantity: { $first: '$items.quantity' }
+      }
+    },
+    { $sort: { lastDate: -1 } },
+    { $limit: limit }
+  ]);
+
+  return rows.map((row) => ({
+    name: row.name,
+    times: row.times,
+    lastDate: toDateKey(row.lastDate),
+    lastQuantity: row.lastQuantity
+  }));
 }
 
 /** Daily calorie series, macro split and per-meal-type breakdown. */

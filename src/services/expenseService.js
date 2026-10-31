@@ -6,7 +6,7 @@ import { Expense } from '../models/Expense.js';
 import { User } from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
 import { toObjectId } from '../utils/ids.js';
-import { resolveRange, dayBuckets } from '../utils/dates.js';
+import { resolveRange, dayBuckets, toDateKey } from '../utils/dates.js';
 import { keywordFilter } from '../utils/search.js';
 import {
   MAX_CUSTOM_CATEGORIES,
@@ -70,7 +70,7 @@ const SEARCH_FIELDS = ['merchant', 'note', 'category'];
 /** Returns one page of rows plus the true total, so the UI can offer "load more". */
 export async function listExpenses(
   userId,
-  { range = 'month', category, keywords, sort = 'recent', limit = 50, offset = 0 } = {}
+  { range = 'month', category, keywords, amount, sort = 'recent', limit = 50, offset = 0 } = {}
 ) {
   const { from, to } = resolveRange(range);
   const filter = {
@@ -79,6 +79,7 @@ export async function listExpenses(
     ...keywordFilter(SEARCH_FIELDS, keywords)
   };
   if (category) filter.category = category;
+  if (amount) filter.amount = amount;
 
   // `_id` breaks ties: rows sharing a date have no stable order otherwise, and
   // `skip` would then show the same row on two pages and hide another.
@@ -122,7 +123,11 @@ export async function updateExpense(userId, id, input) {
 }
 
 /** Totals + per-category split + a daily series for the chart. */
-export async function summariseExpenses(userId, range = 'month', { category, keywords } = {}) {
+export async function summariseExpenses(
+  userId,
+  range = 'month',
+  { category, keywords, amount } = {}
+) {
   const { from, to, label } = resolveRange(range);
   const filter = {
     user: toObjectId(userId),
@@ -130,6 +135,7 @@ export async function summariseExpenses(userId, range = 'month', { category, key
     ...keywordFilter(SEARCH_FIELDS, keywords)
   };
   if (category) filter.category = category;
+  if (amount) filter.amount = amount;
 
   const [rows] = await Expense.aggregate([
     { $match: filter },
@@ -188,6 +194,53 @@ export async function totalBetween(userId, from, to) {
     { $group: { _id: null, amount: { $sum: '$amount' } } }
   ]);
   return row?.amount ?? 0;
+}
+
+/**
+ * Every different way this user has described an expense, newest first, so the
+ * AI can match by meaning ("Hair cutting" for a haircut) when keywords miss.
+ */
+export async function describeSpending(
+  userId,
+  range = 'all',
+  { category, amount, limit = 150 } = {}
+) {
+  const { from, to } = resolveRange(range);
+  const filter = { user: toObjectId(userId), date: { $gte: from, $lte: to } };
+  if (category) filter.category = category;
+  if (amount) filter.amount = amount;
+
+  const rows = await Expense.aggregate([
+    { $match: filter },
+    { $sort: { date: -1, _id: -1 } },
+    {
+      $group: {
+        _id: {
+          note: { $toLower: '$note' },
+          merchant: { $toLower: '$merchant' },
+          category: '$category'
+        },
+        note: { $first: '$note' },
+        merchant: { $first: '$merchant' },
+        times: { $sum: 1 },
+        total: { $sum: '$amount' },
+        lastDate: { $first: '$date' },
+        lastAmount: { $first: '$amount' }
+      }
+    },
+    { $sort: { lastDate: -1 } },
+    { $limit: limit }
+  ]);
+
+  return rows.map((row) => ({
+    note: row.note,
+    merchant: row.merchant,
+    category: row._id.category,
+    times: row.times,
+    total: row.total,
+    lastDate: toDateKey(row.lastDate),
+    lastAmount: row.lastAmount
+  }));
 }
 
 function buildSeries(from, to, map) {
