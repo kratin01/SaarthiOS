@@ -131,9 +131,11 @@ export async function writeReviewStory({ user, review, config }) {
       currency: user.currency,
       isCurrent: review.isCurrent
     }),
-    user: `Month data:\n${JSON.stringify(review, null, 2)}`,
+    user: `Month data:\n${JSON.stringify(review)}`,
     schema: reviewStorySchema,
-    temperature: 0.7
+    temperature: 0.7,
+    // Gemini 2.5 spends hidden thinking tokens from this budget; 1600 cut the JSON off mid-reply.
+    maxTokens: 4096
   });
 
   return {

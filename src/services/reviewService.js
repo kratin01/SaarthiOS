@@ -10,6 +10,7 @@ import * as customAgentService from './customAgentService.js';
 import { resolveForUser } from './aiSettingsService.js';
 import { writeReviewStory } from '../ai/agents/insightAgent.js';
 import { ApiError } from '../utils/ApiError.js';
+import { logger } from '../utils/logger.js';
 import {
   addDays,
   addMonths,
@@ -246,7 +247,8 @@ const writing = new Map();
 /**
  * The insight agent's write-up of a month. A finished month does not change, so
  * its story is kept until the user asks for a new one; the current month is
- * rewritten at most once a day.
+ * rewritten at most once a day. Without a working AI the story is written from
+ * the numbers instead (never cached, so the AI is tried again next visit).
  */
 export async function getReviewStory(user, monthKey, { fresh = false } = {}) {
   const now = new Date();
@@ -260,31 +262,132 @@ export async function getReviewStory(user, monthKey, { fresh = false } = {}) {
     if (cached?.content && (!isCurrent || cached.day === today)) return cached.content;
   }
 
-  const key = `${user._id}:${month}`;
+  const key = `${user._id}:${month}:${fresh}`;
   if (!writing.has(key)) {
-    writing.set(key, writeStory(user, month, now).finally(() => writing.delete(key)));
+    writing.set(key, writeStory(user, month, now, fresh).finally(() => writing.delete(key)));
   }
   return writing.get(key);
 }
 
-async function writeStory(user, month, now) {
+async function writeStory(user, month, now, fresh) {
   const review = await getMonthReview(user, month, now);
   if (!review.money.transactions && !review.food.meals && !review.investing.count) {
     throw ApiError.badRequest(`There is nothing logged in ${review.label} to write about yet.`);
   }
 
+  const fromNumbers = (notice) => ({
+    ...storyFromNumbers(review),
+    source: 'rules',
+    notice,
+    generatedAt: now
+  });
+
   const config = await resolveForUser(user._id);
   if (!config.ok) {
-    throw ApiError.unavailable('Add an AI provider in Settings and your month will be written up for you.');
+    if (fresh) throw ApiError.unavailable('Add an AI provider in Settings to have your month written up.');
+    return fromNumbers('Add an AI provider in Settings and the insight agent will write this up for you.');
   }
 
-  const content = { ...(await writeReviewStory({ user, review, config })), generatedAt: now };
+  let story;
+  try {
+    story = await writeReviewStory({ user, review, config });
+  } catch (error) {
+    logger.warn(`month review story fell back to numbers · ${error.message}`);
+    // A forced rewrite keeps whatever is on screen rather than swapping in the plain version.
+    if (fresh) throw ApiError.unavailable('The insight agent could not write it again just now. Try again in a minute.');
+    return fromNumbers('The insight agent could not write this up just now, so it comes straight from your numbers.');
+  }
+
+  const content = { ...story, source: 'ai', notice: '', generatedAt: now };
   await DailyBrief.updateOne(
     { user: user._id, slot: `review:${month}` },
     { $set: { day: toDateKey(now), content } },
     { upsert: true }
   );
   return content;
+}
+
+/** The same story shape written in code from the numbers, for when no AI can answer. */
+export function storyFromNumbers(review) {
+  const { money, food, investing } = review;
+  const cash = (n) => `${review.currency} ${Math.round(n).toLocaleString('en-IN')}`;
+  const times = (n, word) => `${n.toLocaleString('en-IN')} ${n === 1 ? word : `${word}s`}`;
+  const shortDate = (key) =>
+    new Date(`${key}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const titleCase = (value) => value.replace(/\b\w/g, (char) => char.toUpperCase());
+  const soFar = review.isCurrent ? ' so far' : '';
+
+  const regular = money.regular;
+  const persona =
+    [
+      [money.longestNoSpend?.days >= 3, 'The Steady Saver'],
+      [food.proteinGoal > 0 && food.proteinGoalDays >= 10, 'The Protein Chaser'],
+      [money.weekendShare >= 45 && money.transactions >= 5, 'The Weekend Explorer'],
+      [regular?.count >= 5 && regular.merchant.length <= 24, `The ${titleCase(regular?.merchant ?? '')} Regular`],
+      [food.daysLogged >= 20, 'The Faithful Logger'],
+      [investing.count > 0, 'The Steady Investor']
+    ].find(([fits]) => fits)?.[1] ?? 'Quietly Consistent';
+
+  const change =
+    money.changePct === null
+      ? ''
+      : money.changePct === 0
+        ? `, level with ${money.previous.label}`
+        : `, ${Math.abs(money.changePct)}% ${money.changePct > 0 ? 'more' : 'less'} than ` +
+          `${money.previous.label}${money.previous.partial ? ' at this point' : ''}`;
+  const headline = money.transactions
+    ? `You spent ${cash(money.total)} across ${times(money.transactions, 'transaction')}${soFar}${change}.`
+    : food.meals
+      ? `You logged ${times(food.meals, 'meal')} across ${times(food.daysLogged, 'day')}${soFar}.`
+      : `You invested ${cash(investing.total)}${soFar}.`;
+
+  const top = money.categories[0];
+  const highlights = [
+    money.biggest && {
+      title: 'Biggest purchase',
+      text: `${money.biggest.label}, ${cash(money.biggest.amount)} on ${shortDate(money.biggest.date)}.`
+    },
+    top && {
+      title: `${labelise(top.category)} led the way`,
+      text: `${top.share}% of your spending went here, ${cash(top.amount)} in all.`
+    },
+    money.longestNoSpend && {
+      title: 'No-spend streak',
+      text: `${times(money.longestNoSpend.days, 'day')} in a row without spending anything.`
+    },
+    regular && {
+      title: 'Your regular',
+      text: `${regular.merchant}, ${times(regular.count, 'time')} for ${cash(regular.amount)}.`
+    },
+    food.favourite && {
+      title: 'Favourite food',
+      text: `${titleCase(food.favourite.name)}, logged ${times(food.favourite.count, 'time')}.`
+    },
+    food.proteinGoalDays > 0 && {
+      title: 'Protein goal',
+      text: `Reached on ${times(food.proteinGoalDays, 'day')} out of ${food.daysLogged} logged.`
+    },
+    investing.total > 0 && {
+      title: 'Money put away',
+      text: `${cash(investing.total)} invested across ${times(investing.count, 'contribution')}.`
+    }
+  ]
+    .filter(Boolean)
+    .slice(0, 3);
+
+  const nudge =
+    money.budgetUsedPct > 100
+      ? `${review.isCurrent ? 'You have used' : 'You used'} ${money.budgetUsedPct}% of your ` +
+        `${cash(money.budget)} budget. Try two no-spend days a week next month.`
+      : money.transactions && money.noSpendDays === 0
+        ? 'Try one no-spend day a week next month and watch the streak card fill up.'
+        : food.proteinGoal > 0 && food.proteinGoalDays < food.daysLogged / 2
+          ? `Aim to reach your ${food.proteinGoal} g protein goal on more days next month.`
+          : !food.meals
+            ? 'Tell the assistant what you eat next month, and your food will show up here too.'
+            : 'Keep logging every day so next month\'s review is just as clear.';
+
+  return { persona, headline, highlights, nudge };
 }
 
 const sum = (rows, valueOf) => rows.reduce((total, row) => total + (valueOf(row) || 0), 0);

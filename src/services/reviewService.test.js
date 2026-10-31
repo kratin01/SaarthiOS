@@ -10,7 +10,7 @@ process.env.LLM_BASE_URL = 'https://example.test/v1beta';
 
 const models = await import('../models/index.js');
 const { dayBuckets } = await import('../utils/dates.js');
-const { summariseMonth, resolveReviewMonth, getMonthReview, getReviewStory } =
+const { summariseMonth, resolveReviewMonth, getMonthReview, getReviewStory, storyFromNumbers } =
   await import('./reviewService.js');
 
 const userId = '000000000000000000000001';
@@ -166,7 +166,7 @@ test('a finished month keeps its story; a new one is written once and saved', as
   assert.equal(sameStory, story);
   assert.equal(story.persona, 'Quietly Consistent');
   assert.equal(story.highlights.length, 3);
-  assert.match(prompt, /"label": "September 2026"/);
+  assert.match(prompt, /"label":"September 2026"/);
   assert.match(prompt, /Hair cutting/);
   assert.equal(saved.filter.slot, 'review:2026-09');
 });
@@ -176,4 +176,63 @@ test('an empty month is not written up', async () => {
   mock.method(models.DailyBrief, 'findOne', () => ({ lean: async () => null }));
   mock.method(globalThis, 'fetch', () => assert.fail('Nothing to write about'));
   await assert.rejects(() => getReviewStory(user, '2026-09'), /nothing logged in September 2026/);
+});
+
+test('a cut-off AI reply falls back to a story from the numbers, never cached', async () => {
+  stubMonth({
+    expenses: [
+      { amount: 250, category: 'personal', merchant: '', note: 'Hair cutting', date: at(3), source: 'chat' },
+      { amount: 90, category: 'transport', merchant: 'rapido', note: '', date: at(4), source: 'chat' }
+    ],
+    previousTotal: 200
+  });
+  mock.method(models.AiSetting, 'findOne', () => ({ lean: async () => null }));
+  mock.method(models.GlobalAiSetting, 'findOne', () => ({ lean: async () => null }));
+  mock.method(models.DailyBrief, 'findOne', () => ({ lean: async () => null }));
+  mock.method(models.DailyBrief, 'updateOne', () => assert.fail('A fallback must not be cached'));
+  let maxTokens;
+  // What Gemini 2.5 sent back when thinking used up the output budget.
+  mock.method(globalThis, 'fetch', async (_url, request) => {
+    maxTokens = JSON.parse(request.body).generationConfig.maxOutputTokens;
+    return { ok: true, status: 200, text: async () => JSON.stringify({
+      candidates: [{ content: { parts: [{ text: '{\n  "persona": "The Weekend' }] } }]
+    }) };
+  });
+
+  const story = await getReviewStory(user, '2026-09');
+  assert.equal(maxTokens, 4096);
+  assert.equal(story.source, 'rules');
+  assert.match(story.notice, /could not write this up just now/);
+  assert.equal(story.headline, 'You spent INR 340 across 2 transactions, 70% more than August.');
+  assert.deepEqual(story.highlights[0], { title: 'Biggest purchase', text: 'Hair cutting, INR 250 on 3 Oct.' });
+  assert.equal(story.highlights.length, 3);
+  assert.ok(story.persona.length >= 2);
+
+  await assert.rejects(
+    () => getReviewStory(user, '2026-09', { fresh: true }),
+    /could not write it again just now/
+  );
+});
+
+test('the numbers story picks a persona and nudge from what stands out', () => {
+  const base = {
+    currency: 'INR',
+    isCurrent: true,
+    money: {
+      total: 26391, transactions: 109, budget: 20000, budgetUsedPct: 132, noSpendDays: 0,
+      longestNoSpend: null, biggest: null, categories: [], regular: { merchant: 'Rapido', count: 8, amount: 735 },
+      weekendShare: 48, changePct: 55, previous: { label: 'September', partial: true }
+    },
+    food: { meals: 95, daysLogged: 31, proteinGoal: 0, proteinGoalDays: 0, favourite: { name: 'rice', count: 18 } },
+    investing: { total: 0, count: 0 }
+  };
+  const story = storyFromNumbers(base);
+  assert.equal(story.persona, 'The Weekend Explorer');
+  assert.equal(
+    story.headline,
+    'You spent INR 26,391 across 109 transactions so far, 55% more than September at this point.'
+  );
+  assert.match(story.nudge, /You have used 132% of your INR 20,000 budget/);
+  assert.deepEqual(story.highlights.map((item) => item.title), ['Your regular', 'Favourite food']);
+  assert.doesNotMatch(JSON.stringify(story), /[\u2013\u2014]/);
 });
