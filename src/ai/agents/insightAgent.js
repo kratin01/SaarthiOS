@@ -7,8 +7,12 @@
  * (within a daily budget) and asks again with the results.
  */
 import { askJson } from '../llm.js';
-import { inspirationSchema, overviewInsightsSchema } from '../schemas.js';
-import { buildInspirationPrompt, buildOverviewInsightsPrompt } from '../prompts.js';
+import { inspirationSchema, overviewInsightsSchema, reviewStorySchema } from '../schemas.js';
+import {
+  buildInspirationPrompt,
+  buildOverviewInsightsPrompt,
+  buildReviewStoryPrompt
+} from '../prompts.js';
 import { collectFacts } from '../facts.js';
 import * as customAgentService from '../../services/customAgentService.js';
 import { searchWeb, webSearchEnabled } from '../../services/webSearchService.js';
@@ -115,5 +119,27 @@ export async function writeInspiration({ user, kind, recent, config }) {
     original: shown === 'gita' ? answer.original : '',
     meaning: answer.meaning,
     link: linkFor(results, answer.source)
+  };
+}
+
+/** Words for the Month in review page. No web search: it is about the user's own month. */
+export async function writeReviewStory({ user, review, config }) {
+  const story = await askJson({
+    config,
+    system: buildReviewStoryPrompt({
+      label: review.label,
+      currency: user.currency,
+      isCurrent: review.isCurrent
+    }),
+    user: `Month data:\n${JSON.stringify(review, null, 2)}`,
+    schema: reviewStorySchema,
+    temperature: 0.7
+  });
+
+  return {
+    persona: story.persona,
+    headline: story.headline,
+    highlights: story.highlights,
+    nudge: story.nudge
   };
 }

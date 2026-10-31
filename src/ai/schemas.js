@@ -325,6 +325,19 @@ export const inspirationSchema = z.object({
   source: sourceNumber
 });
 
+/** The insight agent's write-up for the Month in review page. */
+export const reviewStorySchema = z.object({
+  persona: z.string().trim().min(2).max(60),
+  headline: z.string().trim().min(1).max(300),
+  highlights: list(
+    z.object({
+      title: z.string().trim().min(1).max(80),
+      text: z.string().trim().min(1).max(400)
+    })
+  ).transform((items) => items.slice(0, 3)),
+  nudge: text(300)
+});
+
 /**
  * What the model returns after reading an uploaded bill or statement.
  * Nothing here is saved directly — the user reviews it first.
